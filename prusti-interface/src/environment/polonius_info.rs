@@ -19,6 +19,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt;
 use std::iter::FromIterator;
 use std::path::PathBuf;
+use reborrows::infer_reborrows;
+
 
 #[derive(Clone, Debug)]
 pub struct LoanPlaces<'tcx> {
@@ -636,7 +638,7 @@ impl<'a, 'tcx: 'a> PoloniusInfo<'a, 'tcx> {
                 let point = interner.get_point(point_index);
                 (point.location, loan)
             })
-            .collect();
+            .collect::<HashMap<_, _>>();
         let call_loan_at_position = all_facts
             .borrow_region
             .iter()
@@ -647,13 +649,43 @@ impl<'a, 'tcx: 'a> PoloniusInfo<'a, 'tcx> {
             })
             .collect();
 
-        let additional_facts = AdditionalFacts::new(&all_facts, &output);
+        let mut additional_facts = AdditionalFacts::new(&all_facts, &output);
         let additional_facts_without_back_edges =
             AdditionalFacts::new(&all_facts_without_back_edges, &output_without_back_edges);
         let initialization = compute_definitely_initialized(&mir, tcx, def_path.clone());
         let liveness = compute_liveness(&mir);
         let loan_conflict_sets =
             compute_loan_conflict_sets(procedure, &loan_position, &all_facts, &output);
+
+        additional_facts.reborrows_direct =
+            infer_reborrows(mir, &interner, &all_facts.borrow_region)
+                .into_iter()
+                .flat_map(|(loan_a, loans_b)|
+                    loans_b.into_iter().map(move |loan_b| (loan_a, loan_b)))
+                .collect();
+
+        let mut reborrows_transitive = additional_facts.reborrows_direct.iter().cloned()
+            .collect::<HashSet<_>>();
+        loop {
+            let mut reborrows_transitive_new = reborrows_transitive.clone();
+
+            for (l1, l2) in &reborrows_transitive {
+                for (l3, l4) in &reborrows_transitive {
+                    if l2 != l3 {
+                        continue;
+                    }
+                    reborrows_transitive_new.insert((*l1, *l4));
+                }
+            }
+
+            if reborrows_transitive_new == reborrows_transitive {
+                break;
+            } else {
+                reborrows_transitive = reborrows_transitive_new;
+            }
+        }
+
+        additional_facts.reborrows = reborrows_transitive.into_iter().collect();
 
         let mut info = Self {
             mir: mir,
