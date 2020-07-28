@@ -33,6 +33,7 @@ pub mod mir_utils;
 pub mod place_set;
 pub mod polonius_info;
 mod procedure;
+pub mod reborrow_signature;
 
 use self::collect_prusti_spec_visitor::CollectPrustiSpecVisitor;
 pub use self::loops::{PlaceAccess, PlaceAccessKind, ProcedureLoops};

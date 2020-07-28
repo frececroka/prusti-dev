@@ -4,7 +4,7 @@ use rustc_middle::ty;
 
 use super::AsPlace;
 use super::TupleItemsForTy;
-use super::PlaceAddField;
+use super::PlaceAddProjection;
 
 pub trait SplitAggregateAssignment<'tcx> {
     /// Transforms an assignment into its atomic parts. For a normal assignment like
