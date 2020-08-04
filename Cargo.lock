@@ -1844,6 +1844,7 @@ dependencies = [
  "prusti-filter",
  "prusti-interface",
  "prusti-server",
+ "prusti-specs",
  "regex 1.3.9",
  "serde 1.0.114",
  "viper",

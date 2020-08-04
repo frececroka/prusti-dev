@@ -67,6 +67,8 @@ use rustc_span::{MultiSpan, Span};
 use prusti_interface::specs::typed;
 use ::log::{trace, debug};
 use prusti_common::vir::Position;
+use prusti_interface::specs::typed::{AssertionKind, SpecificationSet};
+use prusti_specs::specifications::common::ProcedureSpecification;
 
 pub type Result<T> = std::result::Result<T, EncodingError>;
 
@@ -74,16 +76,16 @@ pub struct ProcedureEncoder<'p, 'v: 'p, 'tcx: 'v> {
     pub encoder: &'p Encoder<'v, 'tcx>,
     proc_def_id: ProcedureDefId,
     pub procedure: &'p Procedure<'p, 'tcx>,
-    mir: &'p mir::Body<'tcx>,
+    pub mir: &'p mir::Body<'tcx>,
     cfg_method: vir::CfgMethod,
     locals: LocalVariableManager<'tcx>,
     loop_encoder: LoopEncoder<'p, 'tcx>,
     auxiliary_local_vars: HashMap<String, vir::Type>,
-    mir_encoder: MirEncoder<'p, 'v, 'tcx>,
+    pub mir_encoder: MirEncoder<'p, 'v, 'tcx>,
     check_panics: bool,
     check_fold_unfold_state: bool,
     polonius_info: Option<PoloniusInfo<'p, 'tcx>>,
-    procedure_contract: Option<ProcedureContract<'tcx>>,
+    pub procedure_contract: Option<ProcedureContract<'tcx>>,
     label_after_location: HashMap<mir::Location, String>,
     // /// Store the CFG blocks that encode a MIR block each.
     cfg_blocks_map: HashMap<mir::BasicBlock, HashSet<CfgBlockIndex>>,
@@ -2822,13 +2824,35 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         contract: &ProcedureContract<'tcx>,
         pre_label: &str, post_label: &str
     ) -> Option<vir::Expr> {
+        // The procedure contract.
+        let contract = self.procedure_contract.as_ref().unwrap();
+
+        // The arguments as Viper expressions.
+        let encoded_args = contract.args.iter()
+            .map(|local| self.encode_prusti_local(*local).into())
+            .collect::<Vec<_>>();
+
+        // The return value as a Viper expression.
+        let encoded_return = self.encode_prusti_local(contract.returned_value).into();
+
+        let pledges = match &contract.specification {
+            SpecificationSet::Procedure(specification) => &specification.pledges,
+            _ => unreachable!(),
+        };
+
+        let pledges = pledges.iter()
+            .map(|pledge| pledge.rhs.clone())
+            .collect();
+
         let borrow_infos = &contract.borrow_infos;
         if borrow_infos.blocked.is_empty() {
             None
         } else {
-            let expiration_tool = ExpirationTool::construct(borrow_infos.clone());
+            let expiration_tool = ExpirationTool::construct(
+                self.procedure.get_tcx(), self.mir, borrow_infos.clone(), pledges);
+            println!("{}", expiration_tool);
             let expiration_tool = self.encode_expiration_tool_as_expression(
-                &expiration_tool, pre_label, post_label);
+                &expiration_tool, &encoded_args, &encoded_return, pre_label, post_label);
             Some(expiration_tool)
         }
     }
@@ -2837,7 +2861,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
     ///
     /// +   For references wrap the base ``_1.var_ref``.
     /// +   For non-references wrap the entire place into old.
-    fn wrap_arguments_into_old(
+    pub fn wrap_arguments_into_old(
         &self,
         mut assertion: vir::Expr,
         pre_label: &str,
@@ -3099,7 +3123,10 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         location: mir::Location,
     ) -> Result<Vec<vir::Stmt>> {
         let contract = self.procedure_contract.as_ref().unwrap();
-        let expiration_tool = ExpirationTool::construct(contract.borrow_infos.clone());
+        let reborrow_signature = contract.borrow_infos.clone();
+        // TODO: Add pledges.
+        let expiration_tool = ExpirationTool::construct(
+            self.procedure.get_tcx(), self.mir, reborrow_signature, vec![]);
         self.encode_expiration_tool_end_of_method(
             &expiration_tool, location, pre_label, post_label)
     }
@@ -3711,7 +3738,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
     }
 
     // TODO: What is this?
-    fn encode_prusti_local(&self, local: Local) -> vir::LocalVar {
+    pub fn encode_prusti_local(&self, local: Local) -> vir::LocalVar {
         let var_name = self.locals.get_name(local);
         let type_name = self
             .encoder
