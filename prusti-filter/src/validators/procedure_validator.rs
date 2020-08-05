@@ -58,14 +58,7 @@ impl<'a, 'tcx: 'a> CommonValidator<'a, 'tcx> for ProcedureValidator<'a, 'tcx> {
 
     fn check_inner_ty(&mut self, ty: ty::Ty<'tcx>, span: Span) {
         skip_visited_inner_type_variant!(self, &ty.sty);
-
         self.check_ty(ty, span);
-
-        match ty.sty {
-            ty::TypeVariants::TyRef(..) => partially!(self, span, "uses reference-typed fields"),
-
-            _ => {} // OK
-        }
     }
 }
 
