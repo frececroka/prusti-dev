@@ -21,8 +21,8 @@ use crate::environment::mir_utils::PlaceAddProjection;
 use crate::environment::mir_utils::TyAsRef;
 
 /// Contains information about which input references a given output reference can re-borrow.
-#[derive(Clone)]
-pub struct ReborrowSignature<P> {
+#[derive(Debug, Clone)]
+pub struct ReborrowSignature<P: Eq + Hash + fmt::Debug> {
     /// All input references.
     pub inputs: HashSet<P>,
     /// All output references.
@@ -36,12 +36,6 @@ pub struct ReborrowSignature<P> {
     /// This stores for every blocking place (e.g. _0, _0.0, _0.1, ...) the places it blocks (i.e.,
     /// may re-borrow from) after the function returns.
     reborrows: HashMap<P, Vec<P>>
-}
-
-impl<P: Eq + Hash + fmt::Debug> fmt::Debug for ReborrowSignature<P> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&self.reborrows, f)
-    }
 }
 
 impl<'tcx> ReborrowSignature<mir::Place<'tcx>> {
@@ -121,6 +115,27 @@ impl<'tcx> ReborrowSignature<mir::Place<'tcx>> {
             reborrows.insert(output.clone(), output_reborrows_from);
         }
 
+        // Removes region and mutability info from the list of inputs.
+        let inputs = inputs.into_iter()
+            .map(|(place, _, _)| place)
+            .collect();
+
+        // Removes region and mutability info from the list of outputs.
+        let outputs = outputs.into_iter()
+            .map(|(place, _, _)| place)
+            .collect();
+
+        Self::new(inputs, outputs, mutability, reborrows)
+    }
+}
+
+impl<'a, P: Eq + Hash + Clone + fmt::Debug + 'a> ReborrowSignature<P> {
+    pub fn new(
+        inputs: HashSet<P>,
+        outputs: HashSet<P>,
+        mutability: HashMap<P, Mutability>,
+        reborrows: HashMap<P, Vec<P>>
+    ) -> Self {
         // Gathers all input places that are blocked after the function returns, which are simply
         // all the places that appear in a value of `reborrows`.
         let blocked = reborrows.values().flatten().cloned().collect();
@@ -136,52 +151,54 @@ impl<'tcx> ReborrowSignature<mir::Place<'tcx>> {
                 })
             .collect();
 
-        // Removes region and mutability info from the list of inputs.
-        let inputs = inputs.into_iter()
-            .map(|(place, _, _)| place)
-            .collect();
-
-        // Removes region and mutability info from the list of outputs.
-        let outputs = outputs.into_iter()
-            .map(|(place, _, _)| place)
-            .collect();
-
-        Self::new(inputs, outputs, mutability, blocked, blocking, reborrows)
-    }
-}
-
-impl<'a, P: Eq + Hash + 'a> ReborrowSignature<P> {
-    pub fn new(
-        inputs: HashSet<P>,
-        outputs: HashSet<P>,
-        mutability: HashMap<P, Mutability>,
-        blocked: HashSet<P>,
-        blocking: HashSet<P>,
-        reborrows: HashMap<P, Vec<P>>
-    ) -> Self {
-        assert!(blocking.len() <= 1,
-            "We can have at most one magic wand in the postcondition.");
         ReborrowSignature { inputs, outputs, mutability, blocked, blocking, reborrows }
     }
 
-    pub fn map<Q: Eq + Hash>(self, f: impl Fn(P) -> Q) -> ReborrowSignature<Q> {
+    /// This updates the re-borrow signature to reflect the state of the re-borrow situation after
+    /// the given output has expired. Concretely, this makes the following changes:
+    ///  - Removes the expired output from `self.outputs`, `self.mutability`, `self.blocking`, and
+    ///    `self.reborrows`.
+    ///  - Removes inputs that are not blocked currently. This has the effect that after expiring
+    ///    the output, `self.returned_inputs()` returns the inputs that are freshly unblocked by
+    ///    the expiration.
+    pub fn expire_output(mut self, output: &P) -> Self {
+        // Expiring the output only makes sense if it blocks something.
+        assert!(self.blocking.contains(output));
+
+        // Remove the expired output from internal data structures.
+        self.outputs.remove(output);
+        self.mutability.remove(output);
+        self.reborrows.remove(output);
+
+        // Remove inputs that are not blocked currently.
+        let blocked = &self.blocked;
+        self.inputs.retain(|input| blocked.contains(input));
+
+        Self::new(self.inputs, self.outputs, self.mutability, self.reborrows)
+    }
+}
+
+impl<'a, P: Eq + Hash + fmt::Debug + 'a> ReborrowSignature<P> {
+    pub fn map<Q: Eq + Hash + Clone + fmt::Debug>(self,
+        f: impl Fn(P) -> Q
+    ) -> ReborrowSignature<Q> {
         let inputs = self.inputs.into_iter().map(&f).collect();
         let outputs = self.outputs.into_iter().map(&f).collect();
         let mutability = self.mutability.into_iter()
             .map(|(place, mutability)| (f(place), mutability))
             .collect();
-        let blocked = self.blocked.into_iter().map(&f).collect();
-        let blocking = self.blocking.into_iter().map(&f).collect();
         let reborrows = self.reborrows.into_iter()
             .map(|(blocking, blocked)| (
                 f(blocking),
                 blocked.into_iter().map(&f).collect()
             ))
             .collect();
-        ReborrowSignature::new(inputs, outputs, mutability, blocked, blocking, reborrows)
+        ReborrowSignature::new(inputs, outputs, mutability, reborrows)
     }
 
-    pub fn map_with_into<Q: Eq + Hash + From<P>>(self) -> ReborrowSignature<Q> {
+    pub fn map_with_into<Q: Eq + Hash + Clone + fmt::Debug + From<P>>(
+        self
+    ) -> ReborrowSignature<Q> {
         self.map(|p| p.into())
     }
 
