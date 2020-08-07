@@ -38,7 +38,7 @@ mod private {
     pub use prusti_contracts_internal::ensures;
 
     /// A macro for writing a pledge on a function.
-    pub use prusti_contracts_internal::after_expiry;
+    pub use prusti_contracts_internal::pledge;
 
     /// A macro for writing a conditional pledge on a function.
     pub use prusti_contracts_internal::after_expiry_if;
@@ -58,6 +58,12 @@ mod private {
 /// This function is used to evaluate an expression in the context just
 /// before the borrows expires.
 pub fn before_expiry<T>(arg: T) -> T {
+    arg
+}
+
+/// This function is used to evaluate an expression in the context just after a reference is
+/// unblocked.
+pub fn after_unblocked<T>(arg: T) -> T {
     arg
 }
 

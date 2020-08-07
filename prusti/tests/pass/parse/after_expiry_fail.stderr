@@ -13,14 +13,8 @@ error: expected `,`
 error: unexpected token
   --> $DIR/after_expiry_fail.rs:16:17
    |
-16 | #[after_expiry(a, a)]
-   |                 ^
+16 | #[pledge(a, a)]
+   |           ^
 
-error: unexpected token
-  --> $DIR/after_expiry_fail.rs:19:22
-   |
-19 | #[after_expiry(a => a, a)]
-   |                      ^
-
-error: aborting due to 4 previous errors
+error: aborting due to 3 previous errors
 

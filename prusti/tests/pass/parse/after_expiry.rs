@@ -13,13 +13,10 @@ fn test1(a: bool) {}
 #[after_expiry_if(a, a)]
 fn test2(a: bool) {}
 
-#[after_expiry(a)]
+#[pledge(a)]
 fn test3(a: bool) {}
 
-#[after_expiry(result => a)]
-fn test4(a: bool) {}
-
-#[after_expiry(
+#[pledge(
     result == match x {
         1 => 1,
         2 => 2,

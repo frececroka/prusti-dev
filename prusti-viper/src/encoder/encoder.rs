@@ -491,7 +491,6 @@ impl<'v, 'tcx> Encoder<'v, 'tcx> {
                     }
                     SpecIdRef::Pledge{ lhs, rhs } => {
                         pledges.push(typed::Pledge {
-                            reference: None,    // FIXME: Currently only `result` is supported.
                             lhs: lhs.map(|spec_id| self.spec().get(&spec_id).unwrap().as_assertion().clone()),
                             rhs: self.spec().get(&rhs).unwrap().as_assertion().clone(),
                         })

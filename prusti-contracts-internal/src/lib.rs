@@ -14,8 +14,8 @@ pub fn ensures(attr: TokenStream, tokens: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn after_expiry(attr: TokenStream, tokens: TokenStream) -> TokenStream {
-    prusti_specs::after_expiry(attr.into(), tokens.into()).into()
+pub fn pledge(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    prusti_specs::pledge(attr.into(), tokens.into()).into()
 }
 
 #[proc_macro_attribute]

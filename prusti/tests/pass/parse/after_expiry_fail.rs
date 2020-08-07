@@ -13,10 +13,7 @@ fn test1() {}
 #[after_expiry_if(a => a)]
 fn test2() {}
 
-#[after_expiry(a, a)]
+#[pledge(a, a)]
 fn test3() {}
-
-#[after_expiry(a => a, a)]
-fn test4() {}
 
 fn main() {}

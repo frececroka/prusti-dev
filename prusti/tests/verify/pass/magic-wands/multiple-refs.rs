@@ -1,10 +1,13 @@
-extern crate prusti_contracts;
+#![feature(register_tool)]
+#![register_tool(prusti)]
+
+use prusti_contracts::*;
 
 struct Point { x: u32, y: u32 }
 
-#[ensures="pledge(after_unblocked(p.x) == before_expiry(*result.0))"]
-#[ensures="pledge(after_unblocked(q.x) == before_expiry(*result.1))"]
-#[ensures="pledge(after_unblocked(p.y) == after_unblocked(q.y))"]
+#[pledge(after_unblocked(p.x) == before_expiry(*result.0))]
+#[pledge(after_unblocked(q.x) == before_expiry(*result.1))]
+#[pledge(after_unblocked(p.y) == after_unblocked(q.y))]
 fn f1<'p, 'q>(p: &'p mut Point, q: &'q mut Point) -> (&'p mut u32, &'q mut u32) {
     p.y = q.y;
     (&mut p.x, &mut q.x)
