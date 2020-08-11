@@ -12,6 +12,11 @@ mod encode;
 mod pledges;
 mod display;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Context {
+    BeforeExpiry, AfterUnblocked
+}
+
 /// This is a high-level representation of the nested magic wands that are returned from a
 /// re-borrowing function. It has the same structure as the the corresponding Viper expression, but
 /// makes the individual components that makes up this expression explicit.

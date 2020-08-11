@@ -13,6 +13,7 @@ use rustc_middle::mir;
 use rustc_middle::ty;
 use rustc_span::symbol::Symbol;
 
+use crate::encoder::expiration_tool::Context;
 use crate::encoder::places;
 use crate::encoder::places::Place;
 
@@ -33,14 +34,11 @@ use crate::encoder::places::Place;
 /// }
 /// ```
 #[derive(Debug)]
-pub struct PledgeDependency<'tcx> {
+pub(super) struct PledgeDependency<'tcx> {
     pub context: Context,
     pub place: places::Place<'tcx>,
     pub expression: rustc_hir::HirId
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Context { BeforeExpiry, AfterUnblocked }
 
 impl<'tcx> PledgeDependency<'tcx> {
     /// Returns
@@ -50,7 +48,7 @@ impl<'tcx> PledgeDependency<'tcx> {
     ///
     /// Here, "before" means before the references from `expired` did expire and the references
     /// from `unblocked` were unblocked.
-    pub fn is_satisfied(&self,
+    pub(super) fn is_satisfied(&self,
         blocking: &HashSet<Place<'tcx>>,
         blocked: &HashSet<Place<'tcx>>,
         expired: &HashSet<Place<'tcx>>,
@@ -70,7 +68,7 @@ impl<'tcx> PledgeDependency<'tcx> {
     }
 }
 
-pub trait PledgeDependenciesSatisfied<'tcx> {
+pub(super) trait PledgeDependenciesSatisfied<'tcx> {
     /// Figures out if the pledge dependencies are newly satisfied, i.e., they are satisfied now
     /// but weren't satisfied before the places from `expired` did expire.
     fn are_newly_satisfied(&self,
@@ -105,7 +103,7 @@ where DS: AsRef<[PledgeDependency<'tcx>]> {
 /// Analyzes the assertion and determines all return places that appear inside a `before_expiry`
 /// environment and input places that appear inside an `after_unblocked` environment (first &
 /// second tuple element, respectively).
-pub fn identify_dependencies<'tcx>(
+pub(super) fn identify_dependencies<'tcx>(
     tcx: ty::TyCtxt<'tcx>,
     mir: &mir::Body<'tcx>,
     reborrow_signature: &ReborrowSignature<places::Place<'tcx>>,

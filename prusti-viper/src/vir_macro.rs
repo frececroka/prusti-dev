@@ -57,6 +57,12 @@ macro_rules! vir {
             Box::new(vir!($rhs)),
             ::prusti_common::vir::Position::default())
     };
+    ($head: tt && $tail: tt) => {
+        ::prusti_common::vir::Expr::BinOp(vir::BinOpKind::And,
+            Box::new(vir!($head)),
+            Box::new(vir!($tail)),
+            ::prusti_common::vir::Position::default())
+    };
     ($head: tt || $tail: tt) => {
         ::prusti_common::vir::Expr::BinOp(vir::BinOpKind::Or,
             Box::new(vir!($head)),
