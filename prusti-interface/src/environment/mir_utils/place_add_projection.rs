@@ -7,6 +7,7 @@ pub trait PlaceAddProjection<'tcx> {
     fn field(self, tcx: ty::TyCtxt<'tcx>, field: mir::Field, ty: ty::Ty<'tcx>) -> Self;
     fn deref(self, tcx: ty::TyCtxt<'tcx>) -> Self;
     fn project(self, tcx: ty::TyCtxt<'tcx>, projection: mir::PlaceElem<'tcx>) -> Self;
+    fn truncate(self, tcx: ty::TyCtxt<'tcx>, n: usize) -> Self;
 }
 
 impl<'tcx> PlaceAddProjection<'tcx> for mir::Place<'tcx> {
@@ -24,6 +25,12 @@ impl<'tcx> PlaceAddProjection<'tcx> for mir::Place<'tcx> {
         mir::Place { local, projection }
     }
 
+    fn truncate(self, tcx: ty::TyCtxt<'tcx>, n: usize) -> Self {
+        assert!(n <= self.projection.len());
+        let local = self.local;
+        let projection = truncate_projection(tcx, self.projection, n);
+        mir::Place { local, projection }
+    }
 }
 
 fn extend_projection<'tcx>(
@@ -33,6 +40,17 @@ fn extend_projection<'tcx>(
 ) -> &'tcx ty::List<mir::PlaceElem<'tcx>> {
     let projection = projection.iter()
         .chain(once(extension))
+        .collect::<Vec<_>>();
+    tcx.intern_place_elems(&projection)
+}
+
+fn truncate_projection<'tcx>(
+    tcx: ty::TyCtxt<'tcx>,
+    projection: &'tcx ty::List<mir::PlaceElem<'tcx>>,
+    n: usize
+) -> &'tcx ty::List<mir::PlaceElem<'tcx>> {
+    let projection = projection.iter()
+        .take(projection.len() - n)
         .collect::<Vec<_>>();
     tcx.intern_place_elems(&projection)
 }

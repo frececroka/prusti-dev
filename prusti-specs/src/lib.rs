@@ -3,9 +3,6 @@
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::spanned::Spanned;
-
-use specifications::untyped;
 
 mod rewriter;
 pub mod specifications;
@@ -49,30 +46,12 @@ pub fn ensures(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     }
 }
 
-/// Check if the given expression is identifier `result`.
-fn check_is_result(reference: &Option<untyped::Expression>) -> syn::Result<()> {
-    if let Some(untyped::Expression { expr, ..}) = reference {
-        if let syn::Expr::Path(syn::ExprPath { qself: None, path, ..}) = expr {
-            if path.is_ident("result") {
-                return Ok(());
-            }
-        }
-        Err(syn::Error::new(
-            expr.span(),
-            "currently only `result` is supported".to_string(),
-        ))
-    } else {
-        Ok(())
-    }
-}
-
-pub fn after_expiry(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+pub fn pledge(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     let item: syn::ItemFn = handle_result!(syn::parse2(tokens));
     let mut rewriter = rewriter::AstRewriter::new();
     let spec_id_rhs = rewriter.generate_spec_id();
     let spec_id_rhs_str = format!(":{}", spec_id_rhs);
     let pledge = handle_result!(rewriter.parse_pledge(None, spec_id_rhs, attr));
-    handle_result!(check_is_result(&pledge.reference));
     assert!(pledge.lhs.is_none(), "after_expiry with lhs?");
     let spec_item_rhs =
         handle_result!(rewriter.generate_spec_item_fn(rewriter::SpecItemType::Postcondition, spec_id_rhs, pledge.rhs, &item));
@@ -90,7 +69,6 @@ pub fn after_expiry_if(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     let spec_id_rhs = rewriter.generate_spec_id();
     let spec_id_str = format!("{}:{}", spec_id_lhs, spec_id_rhs);
     let pledge = handle_result!(rewriter.parse_pledge(Some(spec_id_lhs), spec_id_rhs, attr));
-    handle_result!(check_is_result(&pledge.reference));
     let spec_item_lhs =
         handle_result!(rewriter.generate_spec_item_fn(rewriter::SpecItemType::Postcondition, spec_id_lhs, pledge.lhs.unwrap(), &item));
     let spec_item_rhs =

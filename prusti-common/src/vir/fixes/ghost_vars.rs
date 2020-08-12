@@ -22,15 +22,22 @@ use super::super::cfg;
 pub fn fix_ghost_vars(
     mut method: cfg::CfgMethod
 ) -> cfg::CfgMethod {
-    let mut fixer = GhostVarFixer::default();
-    let mut sentinel_stmt = ast::Stmt::Comment(String::from("moved out stmt"));
-    for block in &mut method.basic_blocks {
-        for stmt in &mut block.stmts {
-            mem::swap(&mut sentinel_stmt, stmt);
-            sentinel_stmt = ast::StmtFolder::fold(&mut fixer, sentinel_stmt);
-            mem::swap(&mut sentinel_stmt, stmt);
-        }
-    }
+    // TODO: Renaming variables interferes with let-bindings around magic wands. For example:
+    //    package [lhs1] --* ([lhs2] --* x == 0) {
+    //      var x: Int := 0
+    //      package [lhs] --* x == 0 { ... }
+    //    }
+    //  Renaming x in the package statement means that the outer magic wand cannot be packaged
+    //  anymore, because the inner magic wand cannot be found due to the renamed variable.
+    // let mut fixer = GhostVarFixer::default();
+    // let mut sentinel_stmt = ast::Stmt::Comment(String::from("moved out stmt"));
+    // for block in &mut method.basic_blocks {
+    //     for stmt in &mut block.stmts {
+    //         mem::swap(&mut sentinel_stmt, stmt);
+    //         sentinel_stmt = ast::StmtFolder::fold(&mut fixer, sentinel_stmt);
+    //         mem::swap(&mut sentinel_stmt, stmt);
+    //     }
+    // }
     method
 }
 

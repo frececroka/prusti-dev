@@ -12,6 +12,7 @@ use crate::encoder::builtin_encoder::BuiltinMethodKind;
 use crate::encoder::errors::{ErrorCtxt, ErrorManager, EncodingError, PrustiError};
 use crate::encoder::foldunfold;
 use crate::encoder::places;
+use crate::encoder::expires_first_domain;
 use crate::encoder::procedure_encoder::ProcedureEncoder;
 use crate::encoder::pure_function_encoder::PureFunctionEncoder;
 use crate::encoder::stub_function_encoder::StubFunctionEncoder;
@@ -253,6 +254,7 @@ impl<'v, 'tcx> Encoder<'v, 'tcx> {
                 type_vars: vec![],
             });
         }
+        domains.push(expires_first_domain::DOMAIN.clone());
         domains.sort_by_key(|d| d.get_identifier());
         domains
     }
@@ -489,7 +491,6 @@ impl<'v, 'tcx> Encoder<'v, 'tcx> {
                     }
                     SpecIdRef::Pledge{ lhs, rhs } => {
                         pledges.push(typed::Pledge {
-                            reference: None,    // FIXME: Currently only `result` is supported.
                             lhs: lhs.map(|spec_id| self.spec().get(&spec_id).unwrap().as_assertion().clone()),
                             rhs: self.spec().get(&rhs).unwrap().as_assertion().clone(),
                         })
