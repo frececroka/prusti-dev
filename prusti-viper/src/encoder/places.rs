@@ -114,7 +114,13 @@ pub enum Place<'tcx> {
 
 impl<'a, 'tcx: 'a> From<&'a mir::Place<'tcx>> for Place<'tcx> {
     fn from(other: &'a mir::Place<'tcx>) -> Self {
-        Place::NormalPlace(other.clone())
+        other.clone().into()
+    }
+}
+
+impl<'tcx> From<mir::Place<'tcx>> for Place<'tcx> {
+    fn from(other: mir::Place<'tcx>) -> Self {
+        Place::NormalPlace(other)
     }
 }
 
