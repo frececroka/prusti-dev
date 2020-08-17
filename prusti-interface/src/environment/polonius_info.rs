@@ -26,7 +26,7 @@ use rustc_span::def_id::LOCAL_CRATE;
 
 use crate::environment::borrowck::facts::PointType;
 use crate::environment::borrowck::regions::PlaceRegions;
-use crate::environment::mir_utils::AllPlaces;
+use crate::environment::mir_utils::AllPlacesForLocal;
 use crate::environment::mir_utils::SplitAggregateAssignment;
 use crate::environment::mir_utils::StatementAsAssign;
 use crate::environment::mir_utils::StatementAt;

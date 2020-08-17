@@ -31,6 +31,7 @@ use prusti_common::{
         CfgBlockIndex, Expr, ExprIterator, FoldingBehaviour, Successor, Type,
     },
 };
+use prusti_interface::environment::mir_utils::PlaceAddProjection;
 use prusti_interface::{
     data::ProcedureDefId,
     environment::{
@@ -1438,12 +1439,6 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
             expr
         };
         let borrow_infos = &contract.borrow_infos;
-        assert_eq!(
-            borrow_infos.len(),
-            1,
-            "We can have at most one magic wand in the postcondition."
-        );
-        let borrow_info = &borrow_infos[0];
 
         // Get the magic wand info.
         let (post_label, lhs, rhs) = self
@@ -1458,7 +1453,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
             .unwrap();
 
         // Obtain the LHS permission.
-        for (path, _) in &borrow_info.blocking_paths {
+        for path in &borrow_infos.blocking {
             let (encoded_place, _, _) = self.encode_generic_place(
                 contract.def_id, Some(loan_location), path
             );
@@ -2711,36 +2706,16 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         vir::Expr,
         Option<vir::Expr>,
     ) {
-        let borrow_infos = &contract.borrow_infos;
-        let maybe_blocked_paths = if !borrow_infos.is_empty() {
-            assert_eq!(
-                borrow_infos.len(),
-                1,
-                "We can have at most one magic wand in the postcondition."
-            );
-            let borrow_info = &borrow_infos[0];
-            Some(&borrow_info.blocked_paths)
-        } else {
-            None
-        };
         // Type spec in which read permissions can be removed.
         let mut type_spec = Vec::new();
         // Type spec containing the read permissions that must be exhaled because they were
         // moved into a magic wand.
         let mut mandatory_type_spec = Vec::new();
-        fn is_blocked(maybe_blocked_paths: Option<&Vec<(Place, Mutability)>>, arg: Local) -> bool {
-            if let Some(blocked_paths) = maybe_blocked_paths {
-                for (blocked_place, _) in blocked_paths {
-                    if blocked_place.is_root(arg) {
-                        return true;
-                    }
-                }
-            }
-            false
-        }
+        let is_blocked = |arg: Local|
+            contract.borrow_infos.blocked.iter().any(|p| p.is_root(arg));
         for local in &contract.args {
             let mut add = |access: vir::Expr| {
-                if is_blocked(maybe_blocked_paths, *local)
+                if is_blocked(*local)
                     && access.get_perm_amount() == vir::PermAmount::Read
                 {
                     mandatory_type_spec.push(access);
@@ -2880,70 +2855,48 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
             .collect();
         let encoded_return: vir::Expr = self.encode_prusti_local(contract.returned_value).into();
 
-        // Encode magic wands
         let borrow_infos = &contract.borrow_infos;
-        if !borrow_infos.is_empty() {
-            assert_eq!(
-                borrow_infos.len(),
-                1,
-                "We can have at most one magic wand in the postcondition."
-            );
-            let borrow_info = &borrow_infos[0];
-            let mut pledges = contract.pledges();
-            assert!(
-                pledges.len() <= 1,
-                "There can be at most one pledge in the function postcondition."
-            );
-            debug!("borrow_info {:?}", borrow_info);
-            let encode_place_perm = |place, mutability, label| {
-                let perm_amount = match mutability {
-                    Mutability::Not => vir::PermAmount::Read,
-                    Mutability::Mut => vir::PermAmount::Write,
-                };
-                let (place_expr, place_ty, _) = self.encode_generic_place(
-                    contract.def_id, location, place);
-                let vir_access =
-                    vir::Expr::pred_permission(place_expr.clone().old(label), perm_amount).unwrap();
-                let inv = self
-                    .encoder
-                    .encode_invariant_func_app(place_ty, place_expr.old(label));
-                vir::Expr::and(vir_access, inv)
+        if borrow_infos.blocked.is_empty() {
+            return None;
+        }
+
+        let mut pledges = contract.pledges();
+        assert!(pledges.len() <= 1,
+            "There can be at most one pledge in the function postcondition.");
+
+        let encode_place_perm = |place, mutability, label| {
+            let perm_amount = match mutability {
+                Mutability::Not => vir::PermAmount::Read,
+                Mutability::Mut => vir::PermAmount::Write,
             };
-            let mut lhs: Vec<_> = borrow_info
-                .blocking_paths
-                .iter()
-                .map(|(place, mutability)| encode_place_perm(place, *mutability, post_label))
-                .collect();
-            let mut rhs: Vec<_> = borrow_info
-                .blocked_paths
-                .iter()
-                .map(|(place, mutability)| encode_place_perm(place, *mutability, pre_label))
-                .collect();
-            if let Some(typed::Pledge { reference, lhs: body_lhs, rhs: body_rhs}) = pledges.first() {
-                debug!(
-                    "pledge reference={:?} lhs={:?} rhs={:?}",
-                    reference, body_lhs, body_rhs
-                );
-                assert!(
-                    reference.is_none(),
-                    "The reference should be none in postcondition."
-                );
-                let mut assertion_lhs = if let Some(body_lhs) = body_lhs {
-                    self.encoder.encode_assertion(
-                        &body_lhs,
-                        &self.mir,
-                        pre_label,
-                        &encoded_args,
-                        Some(&encoded_return),
-                        false,
-                        None,
-                        ErrorCtxt::GenericExpression,
-                    )
-                } else {
-                    true.into()
-                };
-                let mut assertion_rhs = self.encoder.encode_assertion(
-                    &body_rhs,
+            let (place_expr, place_ty, _) = self.encode_generic_place(contract.def_id, location, place);
+            let vir_access =
+                vir::Expr::pred_permission(place_expr.clone().old(label), perm_amount).unwrap();
+            let inv = self
+                .encoder
+                .encode_invariant_func_app(place_ty, place_expr.old(label));
+            vir::Expr::and(vir_access, inv)
+        };
+
+        let mut lhs: Vec<_> = borrow_infos.blocking.iter()
+            .map(|place| encode_place_perm(place, borrow_infos.mutability[place], post_label))
+            .collect();
+        let mut rhs: Vec<_> = borrow_infos.blocked.iter()
+            .map(|place| encode_place_perm(place, borrow_infos.mutability[place], pre_label))
+            .collect();
+
+        if let Some(typed::Pledge { reference, lhs: body_lhs, rhs: body_rhs}) = pledges.first() {
+            debug!(
+                "pledge reference={:?} lhs={:?} rhs={:?}",
+                reference, body_lhs, body_rhs
+            );
+            assert!(
+                reference.is_none(),
+                "The reference should be none in postcondition."
+            );
+            let mut assertion_lhs = if let Some(body_lhs) = body_lhs {
+                self.encoder.encode_assertion(
+                    &body_lhs,
                     &self.mir,
                     pre_label,
                     &encoded_args,
@@ -2951,33 +2904,39 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
                     false,
                     None,
                     ErrorCtxt::GenericExpression,
-                );
-                assertion_lhs =
-                    self.wrap_arguments_into_old(assertion_lhs, pre_label, contract, &encoded_args);
-                assertion_rhs =
-                    self.wrap_arguments_into_old(assertion_rhs, pre_label, contract, &encoded_args);
-                let ty = self.locals.get_type(contract.returned_value);
-                let (encoded_deref, ..) = self.mir_encoder.encode_deref(encoded_return.clone(), ty);
-                let original_expr = encoded_deref;
-                let old_expr = vir::Expr::labelled_old(post_label, original_expr.clone());
-                // TODO ??
-                assertion_lhs = assertion_lhs.replace_place(&original_expr, &old_expr);
-                assertion_lhs = assertion_lhs.remove_redundant_old();
-                assertion_rhs = assertion_rhs.replace_place(&original_expr, &old_expr);
-                assertion_rhs = assertion_rhs.remove_redundant_old();
-                lhs.push(assertion_lhs);
-                rhs.push(assertion_rhs);
-            }
-            let lhs = lhs
-                .into_iter()
-                .conjoin();
-            let rhs = rhs
-                .into_iter()
-                .conjoin();
-            Some((lhs, rhs))
-        } else {
-            None
+                )
+            } else {
+                true.into()
+            };
+            let mut assertion_rhs = self.encoder.encode_assertion(
+                &body_rhs,
+                &self.mir,
+                pre_label,
+                &encoded_args,
+                Some(&encoded_return),
+                false,
+                None,
+                ErrorCtxt::GenericExpression,
+            );
+            assertion_lhs =
+                self.wrap_arguments_into_old(assertion_lhs, pre_label, contract, &encoded_args);
+            assertion_rhs =
+                self.wrap_arguments_into_old(assertion_rhs, pre_label, contract, &encoded_args);
+            let ty = self.locals.get_type(contract.returned_value);
+            let (encoded_deref, ..) = self.mir_encoder.encode_deref(encoded_return.clone(), ty);
+            let original_expr = encoded_deref;
+            let old_expr = vir::Expr::labelled_old(post_label, original_expr.clone());
+            // TODO ??
+            assertion_lhs = assertion_lhs.replace_place(&original_expr, &old_expr);
+            assertion_lhs = assertion_lhs.remove_redundant_old();
+            assertion_rhs = assertion_rhs.replace_place(&original_expr, &old_expr);
+            assertion_rhs = assertion_rhs.remove_redundant_old();
+            lhs.push(assertion_lhs);
+            rhs.push(assertion_rhs);
         }
+        let lhs = lhs.into_iter().conjoin();
+        let rhs = rhs.into_iter().conjoin();
+        Some((lhs, rhs))
     }
 
     /// Wrap function arguments used in the postcondition into ``old``:
@@ -3337,12 +3296,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
 
             // We need to transfer all permissions from old[post](lhs) to lhs.
             let borrow_infos = &self.procedure_contract().borrow_infos;
-            assert_eq!(
-                borrow_infos.len(),
-                1,
-                "We can have at most one magic wand in the postcondition."
-            );
-            for (path, _) in borrow_infos[0].blocking_paths.clone().iter() {
+            for path in &borrow_infos.blocking.clone() {
                 let (encoded_place, _, _) = self.encode_generic_place(
                     self.procedure_contract().def_id, None, path);
                 let old_place = encoded_place.clone().old(post_label.clone());
@@ -3384,28 +3338,15 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
             );
 
         // Find which arguments are blocked by the returned reference.
-        let blocked_args: Vec<usize> = {
-            let borrow_infos = &contract.borrow_infos;
-            if !borrow_infos.is_empty() {
-                assert_eq!(
-                    borrow_infos.len(),
-                    1,
-                    "We can have at most one magic wand in the postcondition."
-                );
-                let mut blocked_args = Vec::new();
-                for (blocked_place, _) in &borrow_infos[0].blocked_paths {
-                    for (i, arg) in contract.args.iter().enumerate() {
-                        debug!("blocked_place={:?} i={:?} arg={:?}", blocked_place, i, arg);
-                        if blocked_place.is_root(*arg) {
-                            blocked_args.push(i);
-                        }
-                    }
-                }
-                blocked_args
-            } else {
-                Vec::new()
-            }
-        };
+        let blocked_places = contract.borrow_infos.blocked;
+        let blocked_args = contract.args.iter().cloned().enumerate()
+            .filter_map(|(i, arg)|
+                if blocked_places.iter().any(|blocked| blocked.is_root(arg)) {
+                    Some(i)
+                } else {
+                    None
+                })
+            .collect::<Vec<_>>();
 
         // Transfer borrow permissions to old.
         self.cfg_method.add_stmt(

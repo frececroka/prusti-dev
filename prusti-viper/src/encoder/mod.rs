@@ -20,6 +20,7 @@ mod optimizer;
 mod places;
 mod procedure_encoder;
 mod pure_function_encoder;
+mod reborrow_signature;
 mod snapshot_encoder;
 mod snapshot_spec_patcher;
 mod spec_encoder;
