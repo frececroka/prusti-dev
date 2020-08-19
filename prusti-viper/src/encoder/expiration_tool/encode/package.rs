@@ -39,7 +39,8 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         // The post label.
         let post_label_stmt = vec![vir::Stmt::Label(post_label.to_owned())];
 
-        let mut encoder = ExpirationToolEncoder::new(self, Some(location), pre_label, post_label);
+        let mut encoder = ExpirationToolEncoder::new(
+            self, Some(location), None, pre_label, post_label);
 
         // The expiration tool proper.
         let mut fresh_name = FreshName::new("et");
@@ -111,18 +112,18 @@ impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
         let base = expired_place.truncate(self.procedure_encoder.procedure.get_tcx(), 1);
         let region = self.procedure_encoder.polonius_info().place_regions.for_place(base).unwrap();
         let point_index = self.procedure_encoder.polonius_info().get_point(
-            self.location.unwrap(), facts::PointType::Start);
+            self.return_location.unwrap(), facts::PointType::Start);
         let (expired_loans, expired_zombie_loans) =
             self.procedure_encoder.polonius_info().get_all_loans_kept_alive_by(point_index, region);
 
         // Expire the loans that are kept alive by this reference.
         let expire_loans = self.procedure_encoder.encode_expiration_of_loans(
-            expired_loans, &expired_zombie_loans, self.location.unwrap(), None)?;
+            expired_loans, &expired_zombie_loans, self.return_location.unwrap(), None)?;
 
         // Fold the places that are unblocked by this magic wand.
         let transfer_permissions_to_old = magic_wand.unblocked()
             .flat_map(|unblocked| self.procedure_encoder.transfer_permissions_to_old(
-                unblocked, self.location.unwrap(), &self.encoded_args, self.pre_label))
+                unblocked, self.return_location.unwrap(), &self.encoded_args, self.pre_label))
             .collect::<Vec<_>>();
 
         // Fold the places that are unblocked by this magic wand.

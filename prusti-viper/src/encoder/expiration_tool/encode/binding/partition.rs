@@ -16,13 +16,14 @@ impl<'a, 'p, 'u, 'v: 'p, 'tcx: 'u + 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> 
         unblocked: impl IntoIterator<Item=&'u places::Place<'tcx>>
     ) -> (Vec<Binding>, Vec<Binding>) {
         let procedure_encoder = &mut self.procedure_encoder;
+        let call_location = self.call_location;
 
         let (encoded_expired, _, _) = procedure_encoder.encode_generic_place(
-            procedure_encoder.procedure.get_id(), None, expired);
+            procedure_encoder.procedure.get_id(), call_location, expired);
 
         let encoded_unblocked = unblocked.into_iter().map(|unblocked| {
             let (encoded_unblocked, _, _) = procedure_encoder.encode_generic_place(
-                procedure_encoder.procedure.get_id(), None, unblocked);
+                procedure_encoder.procedure.get_id(), call_location, unblocked);
             encoded_unblocked
         }).collect::<Vec<_>>();
 

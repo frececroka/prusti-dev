@@ -133,38 +133,38 @@ pub(super) fn identify_dependencies<'tcx>(
         .filter_map(|vdi| Some((vdi.place.as_local()?, vdi.name)))
         .collect::<HashMap<_, _>>();
 
-    // Gather all MIR arguments that are references together with their original name name in the
-    // source program.
-    let inputs = mir.local_decls.indices()
-        .skip(1).take(mir.arg_count)
-        .map(|local| {
-            let name = local_names[&local];
-            let place: mir::Place = local.into();
-            let place = place.deref(tcx);
+    // Gather all MIR arguments that are references and are blocked by something, together with
+    // their original name name in the source program.
+    let inputs = reborrow_signature.blocked.iter()
+        .map(|place| {
+            let place = original_place(place);
+            let name = local_names[&place.local];
             (name, place)
-        })
-        .filter(|(_, place)| {
-            let place = places::Place::NormalPlace(place.clone());
-            reborrow_signature.blocked.contains(&place)
         })
         .collect::<HashMap<_, _>>();
 
-    // Gather all outputs that are references.
+    // Gather all outputs that are references and are blocking something.
     let outputs = reborrow_signature.blocking.iter()
-        .map(|place| match place {
-            places::Place::NormalPlace(place) => place.clone(),
-            _ => unimplemented!() // TODO
-        })
-        .collect();
+        .map(|place| original_place(place))
+        .collect::<HashSet<_>>();
 
     let identifier = DependencyIdentifier { tcx, inputs: &inputs, outputs: &outputs };
     identifier.analyze_assertion(assertion)
 }
 
+fn original_place<'a, 'tcx>(place: &'a places::Place<'tcx>) -> &'a mir::Place<'tcx> {
+    match place {
+        places::Place::NormalPlace(place) |
+        places::Place::SubstitutedPlace { place, .. } =>
+            // TODO: Does this make sense?
+            place
+    }
+}
+
 struct DependencyIdentifier<'v, 'tcx> {
     tcx: ty::TyCtxt<'tcx>,
-    inputs: &'v HashMap<Symbol, mir::Place<'tcx>>,
-    outputs: &'v HashSet<mir::Place<'tcx>>,
+    inputs: &'v HashMap<Symbol, &'v mir::Place<'tcx>>,
+    outputs: &'v HashSet<&'v mir::Place<'tcx>>,
 }
 
 impl<'v, 'tcx> DependencyIdentifier<'v, 'tcx> {

@@ -14,17 +14,47 @@ mod utils;
 
 struct ExpirationToolEncoder<'a, 'p, 'v: 'p, 'tcx: 'v> {
     procedure_encoder: &'a mut ProcedureEncoder<'p, 'v, 'tcx>,
-    location: Option<mir::Location>,
+    /// If we encode an expiration tool for a function call, this location should point to the
+    /// function call statement. If we encode an expiration for a function itself, this location
+    /// should be `None`.
+    call_location: Option<mir::Location>,
+    /// If we encode an expiration tool for a function, this location should point to the return
+    /// statement of the function. If we encode an expiration for a function call, this location
+    /// should be `None`.
+    return_location: Option<mir::Location>,
+    /// The function arguments, encoded as Viper expressions.
     encoded_args: Vec<vir::Expr>,
+    /// The function return value, encoded as a Viper expression.
     encoded_return: vir::Expr,
+    /// The labels at the end and the beginning of the function or before and after the function
+    /// call.
     pre_label: &'a str,
     post_label: &'a str
 }
 
 impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
+    fn for_function(
+        procedure_encoder: &'a mut ProcedureEncoder<'p, 'v, 'tcx>,
+        location: mir::Location,
+        pre_label: &'a str,
+        post_label: &'a str
+    ) -> Self {
+        Self::new(procedure_encoder, Some(location), None, pre_label, post_label)
+    }
+
+    fn for_function_call(
+        procedure_encoder: &'a mut ProcedureEncoder<'p, 'v, 'tcx>,
+        location: mir::Location,
+        pre_label: &'a str,
+        post_label: &'a str
+    ) -> Self {
+        Self::new(procedure_encoder, None, Some(location), pre_label, post_label)
+    }
+
     fn new(
         procedure_encoder: &'a mut ProcedureEncoder<'p, 'v, 'tcx>,
-        location: Option<mir::Location>,
+        return_location: Option<mir::Location>,
+        call_location: Option<mir::Location>,
         pre_label: &'a str,
         post_label: &'a str
     ) -> Self {
@@ -41,7 +71,7 @@ impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
 
         ExpirationToolEncoder {
             procedure_encoder,
-            location,
+            return_location, call_location,
             encoded_args, encoded_return,
             pre_label, post_label
         }

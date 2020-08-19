@@ -2862,10 +2862,13 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
             .map(|pledge| pledge.rhs.clone())
             .collect();
 
+        let instance_def = ty::InstanceDef::Item(ty::WithOptConstParam::unknown(contract.def_id));
+        let mir = self.encoder.env().tcx().instance_mir(instance_def);
+
         let expiration_tools = ExpirationTool::construct(
-            self.procedure.get_tcx(), self.mir, borrow_infos.clone(), pledges)?;
+            self.procedure.get_tcx(), mir, borrow_infos.clone(), pledges)?;
         let expiration_tools = self.encode_expiration_tool_as_expression(
-            &expiration_tools, pre_label, post_label);
+            &expiration_tools, location, pre_label, post_label);
         Ok(Some(expiration_tools))
     }
 
