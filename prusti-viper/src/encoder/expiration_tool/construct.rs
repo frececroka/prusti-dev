@@ -23,7 +23,7 @@ impl<'tcx> ExpirationTool<'tcx> {
     pub fn construct(
         tcx: ty::TyCtxt<'tcx>,
         mir: &mir::Body<'tcx>,
-        reborrows: ReborrowSignature<places::Place<'tcx>>,
+        reborrows: &ReborrowSignature<places::Place<'tcx>>,
         pledges: Vec<typed::Assertion<'tcx>>
     ) -> Result<Vec<Self>> {
         let place_mapping = reborrows.blocking.iter().cloned()
@@ -41,18 +41,18 @@ impl<'tcx> ExpirationTool<'tcx> {
     }
 
     fn construct1(
-        reborrows: ReborrowSignature<places::Place<'tcx>>,
+        reborrows: &ReborrowSignature<places::Place<'tcx>>,
         pledges: &[PledgeWithDependencies<'tcx>],
         place_mapping: &HashMap<places::Place<'tcx>, usize>
     ) -> Vec<Self> {
         split_reborrows(reborrows, pledges.to_vec()).into_iter()
             .sorted_by_key(|(reborrows, _)| reborrows.blocking.iter().min().cloned())
-            .map(|(reborrows, pledges)| Self::construct2(reborrows, &pledges, place_mapping))
+            .map(|(reborrows, pledges)| Self::construct2(&reborrows, &pledges, place_mapping))
             .collect()
     }
 
     fn construct2(
-        reborrows: ReborrowSignature<places::Place<'tcx>>,
+        reborrows: &ReborrowSignature<places::Place<'tcx>>,
         pledges: &[PledgeWithDependencies<'tcx>],
         place_mapping: &HashMap<places::Place<'tcx>, usize>
     ) -> Self {
@@ -78,7 +78,7 @@ impl<'tcx> ExpirationTool<'tcx> {
             // The nested expiration tools. Right now there is just a single one, but soon this
             // will be optimized to provide a separate expiration tool for every connected
             // component of the reborrowing graph.
-            let expiration_tools = Self::construct1(reborrows, pledges, place_mapping);
+            let expiration_tools = Self::construct1(&reborrows, pledges, place_mapping);
 
             let magic_wand = MagicWand {
                 expired, unblocked,

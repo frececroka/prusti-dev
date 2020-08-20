@@ -10,7 +10,7 @@ use crate::encoder::reborrow_signature::ReborrowSignature;
 use super::pledges::PledgeWithDependencies;
 
 pub(super) fn split_reborrows<'tcx>(
-    reborrow_signature: ReborrowSignature<places::Place<'tcx>>,
+    reborrow_signature: &ReborrowSignature<places::Place<'tcx>>,
     pledges: Vec<PledgeWithDependencies<'tcx>>
 ) -> Vec<(ReborrowSignature<places::Place<'tcx>>, Vec<PledgeWithDependencies<'tcx>>)> {
     let mut representatives = HashMap::new();
