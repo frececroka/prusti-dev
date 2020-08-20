@@ -13,7 +13,7 @@ use super::ExpirationToolEncoder;
 use super::LiftBindings;
 use super::super::ExpirationTool;
 use super::super::MagicWand;
-use super::utils::replace_old_expression;
+use super::utils::extract_before_expiry_after_unblocked;
 
 impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
     pub fn encode_expiration_tool_as_expression(&mut self,
@@ -85,7 +85,7 @@ impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
 
         let pledges = magic_wand.pledges()
             .map(|pledge| self.encode_pledge(pledge))
-            .map(|pledge| replace_old_expression(pledge, &mut fresh_name))
+            .map(|pledge| extract_before_expiry_after_unblocked(pledge, &mut fresh_name))
             .collect::<Vec<_>>();
 
         // A list of conjuncts representing the encoded pledges and expiration tools, with a list

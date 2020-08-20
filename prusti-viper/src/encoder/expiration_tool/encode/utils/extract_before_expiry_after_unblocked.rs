@@ -6,28 +6,35 @@ use crate::utils::fresh_name::FreshName;
 use super::super::Binding;
 use super::super::super::Context;
 
-pub(in super::super) fn replace_old_expression(
+/// Finds all sub-expressions of the form `before_expiry(e)` and `after_unblocked(e)` and replaces
+/// them with a fresh variable, sourced from the `fresh_name` argument. It returns a list of
+/// performed replacements in the form of bindings.
+///
+/// Concretely, every `before_expiry(ex)` that is replaced by a variable `fx` produces a binding
+/// `(fx, BeforeExpiry, ex)`, and every `after_unblocked(ey)` that is replaced by a variable `fy`
+/// produces a binding `(fy, AfterUnblocked, ey)`.
+pub(in super::super) fn extract_before_expiry_after_unblocked(
     pledge: vir::Expr,
     fresh_name: &mut FreshName
 ) -> (vir::Expr, Vec<Binding>) {
-    let mut replacer = OldReplacer { fresh_name, replacements: Vec::new() };
-    let pledge = replacer.fold(pledge);
-    let replacements = replacer.replacements;
+    let mut extractor = Extractor { fresh_name, replacements: Vec::new() };
+    let pledge = extractor.fold(pledge);
+    let replacements = extractor.replacements;
     (pledge, replacements)
 }
 
-struct OldReplacer<'a> {
+struct Extractor<'a> {
     fresh_name: &'a mut FreshName,
     replacements: Vec<Binding>
 }
 
-impl<'a> OldReplacer<'a> {
+impl<'a> Extractor<'a> {
     fn next_var(&mut self) -> vir::LocalVar {
         vir::LocalVar::new(self.fresh_name.next(), vir::Type::Int)
     }
 }
 
-impl<'a> ExprFolder for OldReplacer<'a> {
+impl<'a> ExprFolder for Extractor<'a> {
     fn fold_labelled_old(&mut self,
         label: String,
         body: Box<vir::Expr>,
