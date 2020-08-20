@@ -68,7 +68,7 @@ use ::log::{trace, debug};
 use prusti_common::vir::Position;
 use prusti_interface::specs::typed::{AssertionKind, SpecificationSet};
 use prusti_specs::specifications::common::ProcedureSpecification;
-use crate::utils::fresh_name::FreshName;
+use crate::utils::namespace::Namespace;
 
 pub type Result<T> = std::result::Result<T, EncodingError>;
 

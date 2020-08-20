@@ -5,7 +5,7 @@ use rustc_middle::mir;
 
 use crate::encoder::borrows::ProcedureContract;
 use crate::encoder::procedure_encoder::ProcedureEncoder;
-use crate::utils::fresh_name::FreshName;
+use crate::utils::namespace::Namespace;
 
 use super::binding::Binding;
 use super::binding::encode_binding;
@@ -26,11 +26,11 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         let mut encoder = ExpirationToolEncoder::new(
             self, contract, None, call_location, pre_label, post_label);
 
-        let mut fresh_name = FreshName::new("et");
+        let mut namespace = Namespace::new("et");
         let (encoded_expiration_tools, bindings): (Vec<_>, Vec<_>) = expiration_tools.into_iter()
             .map(|expiration_tool| {
-                let fresh_name = fresh_name.next_child();
-                encoder.expiration_tool_as_expression(expiration_tool, fresh_name)
+                let namespace = namespace.next_child();
+                encoder.expiration_tool_as_expression(expiration_tool, namespace)
             })
             .collect::<Vec<_>>()
             .into_iter().lift_bindings();
@@ -47,13 +47,13 @@ impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
     /// This encodes the given expiration tool as a Viper expression.
     pub(super) fn expiration_tool_as_expression(&mut self,
         expiration_tool: &ExpirationTool<'tcx>,
-        fresh_name: FreshName
+        namespace: Namespace
     ) -> (vir::Expr, Vec<Binding>) {
         let (branches, bindings) = self.encode_expiration_tool_branches(
-            expiration_tool, fresh_name,
-            |encoder, antecedent, magic_wand, fresh_name| {
+            expiration_tool, namespace,
+            |encoder, antecedent, magic_wand, namespace| {
                 let (encoded_magic_wand, bindings) =
-                    encoder.magic_wand_as_expression(magic_wand, fresh_name);
+                    encoder.magic_wand_as_expression(magic_wand, namespace);
                 let encoded_branch = vir!([antecedent] ==> [encoded_magic_wand]);
                 Ok((encoded_branch, bindings))
             }
@@ -65,7 +65,7 @@ impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
     /// This encodes the given magic wand as a Viper expression.
     pub(super) fn magic_wand_as_expression(&mut self,
         magic_wand: &MagicWand<'tcx>,
-        mut fresh_name: FreshName
+        mut namespace: Namespace
     ) -> (vir::Expr, Vec<Binding>) {
         let expired_perm = self.procedure_encoder.encode_place_perm(
             magic_wand.expired(), Mutability::Mut, self.call_location, self.post_label);
@@ -78,14 +78,14 @@ impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
 
         let nested_expiration_tools = magic_wand.expiration_tools()
             .map(|expiration_tool| {
-                let fresh_name = fresh_name.next_child();
-                self.expiration_tool_as_expression(expiration_tool, fresh_name)
+                let namespace = namespace.next_child();
+                self.expiration_tool_as_expression(expiration_tool, namespace)
             })
             .collect::<Vec<_>>();
 
         let pledges = magic_wand.pledges()
             .map(|pledge| self.encode_pledge(pledge))
-            .map(|pledge| extract_before_expiry_after_unblocked(pledge, &mut fresh_name))
+            .map(|pledge| extract_before_expiry_after_unblocked(pledge, &mut namespace))
             .collect::<Vec<_>>();
 
         // A list of conjuncts representing the encoded pledges and expiration tools, with a list

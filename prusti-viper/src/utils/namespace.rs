@@ -1,13 +1,13 @@
 #[derive(Clone)]
-pub struct FreshName {
+pub struct Namespace {
     prefix: String,
     counter: u64
 }
 
-impl FreshName {
+impl Namespace {
     pub fn new(prefix: impl ToString) -> Self {
         let prefix = prefix.to_string();
-        FreshName { prefix, counter: 0 }
+        Namespace { prefix, counter: 0 }
     }
 
     pub fn next(&mut self) -> String {
@@ -15,7 +15,7 @@ impl FreshName {
         format!("{}${}", self.prefix, self.counter)
     }
 
-    pub fn next_child(&mut self) -> FreshName {
-        FreshName::new(self.next())
+    pub fn next_child(&mut self) -> Namespace {
+        Namespace::new(self.next())
     }
 }
