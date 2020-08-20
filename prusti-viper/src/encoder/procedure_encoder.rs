@@ -2309,9 +2309,10 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
             false,
         )?;
 
-        // We inhale the magic wand just before applying it because we need
-        // a magic wand that depends on the current value of ghost variables.
-        self.replace_old_places_with_ghost_vars(Some(&post_label), magic_wands);
+        // TODO: what?
+        // // We inhale the magic wand just before applying it because we need
+        // // a magic wand that depends on the current value of ghost variables.
+        // self.replace_old_places_with_ghost_vars(Some(&post_label), magic_wands);
 
         let post_perm_spec = replace_fake_exprs(post_type_spec);
         stmts.push(vir::Stmt::Inhale(
@@ -2346,6 +2347,8 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
 
         // Emit the label and magic wands
         stmts.push(vir::Stmt::Label(post_label.clone()));
+
+        stmts.push(vir!(inhale [magic_wands]));
 
         stmts.extend(stmts_after);
 
