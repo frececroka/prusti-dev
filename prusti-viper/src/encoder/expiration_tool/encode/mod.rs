@@ -4,6 +4,7 @@ use prusti_common::vir;
 use rustc_middle::mir;
 
 use crate::encoder::procedure_encoder::ProcedureEncoder;
+use crate::encoder::borrows::ProcedureContract;
 
 mod expression;
 mod package;
@@ -53,14 +54,12 @@ impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
 
     fn new(
         procedure_encoder: &'a mut ProcedureEncoder<'p, 'v, 'tcx>,
+        contract: &ProcedureContract<'tcx>,
         return_location: Option<mir::Location>,
         call_location: Option<mir::Location>,
         pre_label: &'a str,
         post_label: &'a str
     ) -> Self {
-        // The procedure contract.
-        let contract = procedure_encoder.procedure_contract.as_ref().unwrap();
-
         // The arguments as Viper expressions.
         let encoded_args = contract.args.iter()
             .map(|local| procedure_encoder.encode_prusti_local(*local).into())

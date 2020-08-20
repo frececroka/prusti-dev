@@ -92,7 +92,7 @@ pub struct ProcedureEncoder<'p, 'v: 'p, 'tcx: 'v> {
     // /// Contains the boolean local variables that became `true` the first time the block is executed
     cfg_block_has_been_executed: HashMap<mir::BasicBlock, vir::LocalVar>,
     // /// Contracts of functions called at given locations with map for replacing fake expressions.
-    procedure_contracts:
+    pub procedure_contracts:
         HashMap<mir::Location, (ProcedureContract<'tcx>, HashMap<vir::Expr, vir::Expr>)>,
     // /// A map that stores local variables used to preserve the value of a place accross the loop
     // /// when we cannot do that by using permissions.
@@ -2768,7 +2768,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         let expiration_tools = ExpirationTool::construct(
             self.procedure.get_tcx(), &mir.borrow(), borrow_infos, pledges)?;
         let expiration_tools = self.encode_expiration_tool_as_expression(
-            &expiration_tools, location, pre_label, post_label);
+            &expiration_tools, contract, location, pre_label, post_label);
         Ok(Some(expiration_tools))
     }
 
@@ -3039,7 +3039,8 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         post_label: &str,
         location: mir::Location,
     ) -> Result<Vec<vir::Stmt>> {
-        let contract = self.procedure_contract.as_ref().unwrap();
+        // TODO: We clone here because `self` will be borrowed mutably later.
+        let contract = self.procedure_contract.clone().unwrap();
 
         let pledges = contract.pledges().iter()
             .map(|pledge| pledge.rhs.clone())
@@ -3048,8 +3049,9 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         let reborrow_signature = &contract.borrow_infos;
         let expiration_tools = ExpirationTool::construct(
             self.procedure.get_tcx(), self.mir, reborrow_signature, pledges)?;
+
         self.encode_expiration_tool_as_package(
-            &expiration_tools, location, pre_label, post_label)
+            &expiration_tools, &contract, location, pre_label, post_label)
     }
 
     /// Encode postcondition exhale on the definition side.

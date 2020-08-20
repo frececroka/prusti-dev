@@ -3,6 +3,7 @@ use prusti_common::vir::ExprIterator;
 use rustc_hir::Mutability;
 use rustc_middle::mir;
 
+use crate::encoder::borrows::ProcedureContract;
 use crate::encoder::procedure_encoder::ProcedureEncoder;
 use crate::utils::fresh_name::FreshName;
 
@@ -17,12 +18,13 @@ use super::utils::replace_old_expression;
 impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
     pub fn encode_expiration_tool_as_expression(&mut self,
         expiration_tools: &[ExpirationTool<'tcx>],
+        contract: &ProcedureContract<'tcx>,
         call_location: Option<mir::Location>,
         pre_label: &str,
         post_label: &str
     ) -> vir::Expr {
         let mut encoder = ExpirationToolEncoder::new(
-            self, None, call_location, pre_label, post_label);
+            self, contract, None, call_location, pre_label, post_label);
 
         let mut fresh_name = FreshName::new("et");
         let (encoded_expiration_tools, bindings): (Vec<_>, Vec<_>) = expiration_tools.into_iter()

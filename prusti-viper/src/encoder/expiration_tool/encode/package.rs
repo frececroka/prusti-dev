@@ -6,6 +6,7 @@ use prusti_interface::environment::mir_utils::PlaceAddProjection;
 use rustc_hir::Mutability;
 use rustc_middle::mir;
 
+use crate::encoder::borrows::ProcedureContract;
 use crate::encoder::places;
 use crate::encoder::procedure_encoder::ProcedureEncoder;
 use crate::encoder::procedure_encoder::Result;
@@ -21,6 +22,7 @@ use super::super::MagicWand;
 impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
     pub fn encode_expiration_tool_as_package(&mut self,
         expiration_tools: &[ExpirationTool<'tcx>],
+        contract: &ProcedureContract<'tcx>,
         location: mir::Location,
         pre_label: &str,
         post_label: &str
@@ -40,7 +42,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         let post_label_stmt = vec![vir::Stmt::Label(post_label.to_owned())];
 
         let mut encoder = ExpirationToolEncoder::new(
-            self, Some(location), None, pre_label, post_label);
+            self, contract, Some(location), None, pre_label, post_label);
 
         // The expiration tool proper.
         let mut fresh_name = FreshName::new("et");
