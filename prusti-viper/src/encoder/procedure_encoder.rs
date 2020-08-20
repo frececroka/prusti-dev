@@ -3041,12 +3041,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
     ) -> Result<Vec<vir::Stmt>> {
         let contract = self.procedure_contract.as_ref().unwrap();
 
-        let pledges = match &contract.specification {
-            SpecificationSet::Procedure(specification) => &specification.pledges,
-            _ => unreachable!(),
-        };
-
-        let pledges = pledges.iter()
+        let pledges = contract.pledges().iter()
             .map(|pledge| pledge.rhs.clone())
             .collect();
 
