@@ -137,16 +137,14 @@ pub(super) fn identify_dependencies<'tcx>(
     // their original name name in the source program.
     let inputs = reborrow_signature.blocked.iter()
         .map(|place| {
-            let place = original_place(place);
-            let name = local_names[&place.local];
+            let local = &original_place(place).local;
+            let name = local_names[local];
             (name, place)
         })
         .collect::<HashMap<_, _>>();
 
     // Gather all outputs that are references and are blocking something.
-    let outputs = reborrow_signature.blocking.iter()
-        .map(|place| original_place(place))
-        .collect::<HashSet<_>>();
+    let outputs = reborrow_signature.blocking.iter().collect::<HashSet<_>>();
 
     let identifier = DependencyIdentifier { tcx, inputs: &inputs, outputs: &outputs };
     identifier.analyze_assertion(assertion)
@@ -154,17 +152,14 @@ pub(super) fn identify_dependencies<'tcx>(
 
 fn original_place<'a, 'tcx>(place: &'a places::Place<'tcx>) -> &'a mir::Place<'tcx> {
     match place {
-        places::Place::NormalPlace(place) |
-        places::Place::SubstitutedPlace { place, .. } =>
-            // TODO: Does this make sense?
-            place
+        places::Place::NormalPlace(place) | places::Place::SubstitutedPlace { place, .. } => place,
     }
 }
 
 struct DependencyIdentifier<'v, 'tcx> {
     tcx: ty::TyCtxt<'tcx>,
-    inputs: &'v HashMap<Symbol, &'v mir::Place<'tcx>>,
-    outputs: &'v HashSet<&'v mir::Place<'tcx>>,
+    inputs: &'v HashMap<Symbol, &'v places::Place<'tcx>>,
+    outputs: &'v HashSet<&'v places::Place<'tcx>>,
 }
 
 impl<'v, 'tcx> DependencyIdentifier<'v, 'tcx> {
@@ -262,11 +257,13 @@ impl<'v, 'tcx> DependencyIdentifier<'v, 'tcx> {
     fn determine_before_expiry_dependencies(&self,
         expression: &rustc_hir::Expr
     ) -> HashSet<PledgeDependency<'tcx>> {
-        self.outputs.iter().filter_map(|output| {
-            if expr_matches_place(&expression, &output.truncate(self.tcx, 1)) {
+        self.outputs.iter().filter_map(|&output| {
+            let original_output = original_place(output);
+            let original_output = original_output.truncate(self.tcx, 1);
+            if expr_matches_place(&expression, &original_output) {
                 Some(PledgeDependency {
                     context: Context::BeforeExpiry,
-                    place: output.clone().into(),
+                    place: output.clone(),
                     span: expression.span
                 })
             } else { None }
@@ -282,10 +279,10 @@ impl<'v, 'tcx> DependencyIdentifier<'v, 'tcx> {
             let segments = &path.segments;
             if segments.len() == 1 {
                 let name = segments[0].ident.name;
-                if let Some(place) = self.inputs.get(&name) {
+                if let Some(&place) = self.inputs.get(&name) {
                     std::iter::once(PledgeDependency {
                         context: Context::AfterUnblocked,
-                        place: place.clone().into(),
+                        place: place.clone(),
                         span: expression.span
                     }).collect()
                 } else { HashSet::new() }
