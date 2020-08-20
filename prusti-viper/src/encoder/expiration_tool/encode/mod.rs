@@ -34,24 +34,6 @@ struct ExpirationToolEncoder<'a, 'p, 'v: 'p, 'tcx: 'v> {
 }
 
 impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
-    fn for_function(
-        procedure_encoder: &'a mut ProcedureEncoder<'p, 'v, 'tcx>,
-        location: mir::Location,
-        pre_label: &'a str,
-        post_label: &'a str
-    ) -> Self {
-        Self::new(procedure_encoder, Some(location), None, pre_label, post_label)
-    }
-
-    fn for_function_call(
-        procedure_encoder: &'a mut ProcedureEncoder<'p, 'v, 'tcx>,
-        location: mir::Location,
-        pre_label: &'a str,
-        post_label: &'a str
-    ) -> Self {
-        Self::new(procedure_encoder, None, Some(location), pre_label, post_label)
-    }
-
     fn new(
         procedure_encoder: &'a mut ProcedureEncoder<'p, 'v, 'tcx>,
         contract: &ProcedureContract<'tcx>,
