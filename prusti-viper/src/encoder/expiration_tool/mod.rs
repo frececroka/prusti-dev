@@ -21,6 +21,10 @@ enum Context {
     BeforeExpiry, AfterUnblocked
 }
 
+/// A collection of expiration tools, one for every connected component of input/output references.
+#[derive(Debug)]
+pub struct ExpirationTools<'tcx>(Vec<ExpirationTool<'tcx>>);
+
 /// This is a high-level representation of the nested magic wands that are returned from a
 /// re-borrowing function. It has the same structure as the the corresponding Viper expression, but
 /// makes the individual components that make up this expression explicit.
@@ -54,7 +58,21 @@ pub struct MagicWand<'tcx> {
     pledges: Vec<typed::Assertion<'tcx>>,
     /// The expiration tools that can be used to expire further references. During encoding, they
     /// will be included on the right-hand side of the magic wand.
-    expiration_tools: Vec<ExpirationTool<'tcx>>,
+    expiration_tools: ExpirationTools<'tcx>,
+}
+
+impl<'tcx> From<Vec<ExpirationTool<'tcx>>> for ExpirationTools<'tcx> {
+    fn from(expiration_tools: Vec<ExpirationTool<'tcx>>) -> Self {
+        Self(expiration_tools)
+    }
+}
+
+impl<'a, 'tcx> IntoIterator for &'a ExpirationTools<'tcx> {
+    type Item = &'a ExpirationTool<'tcx>;
+    type IntoIter = std::slice::Iter<'a, ExpirationTool<'tcx>>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
 }
 
 impl<'tcx> ExpirationTool<'tcx> {
@@ -89,6 +107,6 @@ impl<'tcx> MagicWand<'tcx> {
     /// Creates an iterator over all expiration tools that is ordered deterministically. This is
     /// important during the encoding, where the order of conjuncts in magic wands matters.
     fn expiration_tools(&self) -> impl Iterator<Item=&ExpirationTool<'tcx>> {
-        self.expiration_tools.iter().sorted_by_key(|et| et.blocking.iter().min())
+        self.expiration_tools.into_iter().sorted_by_key(|et| et.blocking.iter().min())
     }
 }

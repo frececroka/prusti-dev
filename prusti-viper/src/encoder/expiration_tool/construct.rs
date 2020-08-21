@@ -13,19 +13,20 @@ use crate::encoder::procedure_encoder::Result;
 use crate::encoder::reborrow_signature::ReborrowSignature;
 
 use super::ExpirationTool;
+use super::ExpirationTools;
 use super::MagicWand;
 use super::pledges::identify_dependencies;
 use super::pledges::PledgeDependenciesSatisfied;
 use super::pledges::PledgeWithDependencies;
 use super::split_reborrows::split_reborrows;
 
-impl<'tcx> ExpirationTool<'tcx> {
+impl<'tcx> ExpirationTools<'tcx> {
     pub fn construct(
         tcx: ty::TyCtxt<'tcx>,
         mir: &mir::Body<'tcx>,
         reborrows: &ReborrowSignature<places::Place<'tcx>>,
         pledges: Vec<typed::Assertion<'tcx>>
-    ) -> Result<Vec<Self>> {
+    ) -> Result<Self> {
         let place_mapping = reborrows.blocking.iter().cloned()
             .enumerate().map(|(i, p)| (p, i))
             .collect();
@@ -44,13 +45,15 @@ impl<'tcx> ExpirationTool<'tcx> {
         reborrows: &ReborrowSignature<places::Place<'tcx>>,
         pledges: &[PledgeWithDependencies<'tcx>],
         place_mapping: &HashMap<places::Place<'tcx>, usize>
-    ) -> Vec<Self> {
+    ) -> Self {
         split_reborrows(reborrows, pledges.to_vec()).into_iter()
             .sorted_by_key(|(reborrows, _)| reborrows.blocking.iter().min().cloned())
-            .map(|(reborrows, pledges)| Self::construct2(&reborrows, &pledges, place_mapping))
-            .collect()
+            .map(|(reborrows, pledges)| ExpirationTool::construct2(&reborrows, &pledges, place_mapping))
+            .collect::<Vec<_>>().into()
     }
+}
 
+impl<'tcx> ExpirationTool<'tcx> {
     fn construct2(
         reborrows: &ReborrowSignature<places::Place<'tcx>>,
         pledges: &[PledgeWithDependencies<'tcx>],
@@ -78,7 +81,7 @@ impl<'tcx> ExpirationTool<'tcx> {
             // The nested expiration tools. Right now there is just a single one, but soon this
             // will be optimized to provide a separate expiration tool for every connected
             // component of the reborrowing graph.
-            let expiration_tools = Self::construct1(&reborrows, pledges, place_mapping);
+            let expiration_tools = ExpirationTools::construct1(&reborrows, pledges, place_mapping);
 
             let magic_wand = MagicWand {
                 expired, unblocked,

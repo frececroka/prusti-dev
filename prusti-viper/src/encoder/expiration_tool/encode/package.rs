@@ -17,18 +17,19 @@ use super::binding::encode_binding;
 use super::binding::LiftBindings;
 use super::ExpirationToolEncoder;
 use super::super::ExpirationTool;
+use super::super::ExpirationTools;
 use super::super::MagicWand;
 
 impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
     pub fn encode_expiration_tool_as_package(&mut self,
-        expiration_tools: &[ExpirationTool<'tcx>],
+        expiration_tools: &ExpirationTools<'tcx>,
         contract: &ProcedureContract<'tcx>,
         location: mir::Location,
         pre_label: &str,
         post_label: &str
     ) -> Result<Vec<vir::Stmt>> {
         // All blocked permissions must be folded before the post label.
-        let obtains = expiration_tools.iter()
+        let obtains = expiration_tools.into_iter()
             .flat_map(|expiration_tool| &expiration_tool.blocking)
             .flat_map(|place| {
                 let place_perm = self.encode_place_perm(place, Mutability::Mut, None, post_label);

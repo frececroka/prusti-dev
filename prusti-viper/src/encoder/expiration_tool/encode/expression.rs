@@ -12,12 +12,13 @@ use super::binding::encode_binding;
 use super::ExpirationToolEncoder;
 use super::LiftBindings;
 use super::super::ExpirationTool;
+use super::super::ExpirationTools;
 use super::super::MagicWand;
 use super::utils::extract_before_expiry_after_unblocked;
 
 impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
     pub fn encode_expiration_tool_as_expression(&mut self,
-        expiration_tools: &[ExpirationTool<'tcx>],
+        expiration_tools: &ExpirationTools<'tcx>,
         contract: &ProcedureContract<'tcx>,
         call_location: Option<mir::Location>,
         pre_label: &str,

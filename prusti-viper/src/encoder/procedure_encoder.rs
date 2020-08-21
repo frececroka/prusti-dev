@@ -15,7 +15,7 @@ use crate::encoder::loop_encoder::{LoopEncoder, LoopEncoderError};
 use crate::encoder::mir_encoder::{MirEncoder, FakeMirEncoder, PlaceEncoder};
 use crate::encoder::mir_encoder::{POSTCONDITION_LABEL, PRECONDITION_LABEL};
 use crate::encoder::mir_successor::MirSuccessor;
-use crate::encoder::expiration_tool::ExpirationTool;
+use crate::encoder::expiration_tool::ExpirationTools;
 use crate::encoder::optimizer;
 use crate::encoder::places::{Local, LocalVariableManager, Place};
 use crate::encoder::Encoder;
@@ -2768,7 +2768,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         let def_id = ty::WithOptConstParam::unknown(contract.def_id.expect_local());
         let (mir, _) = self.procedure.get_tcx().mir_validated(def_id);
 
-        let expiration_tools = ExpirationTool::construct(
+        let expiration_tools = ExpirationTools::construct(
             self.procedure.get_tcx(), &mir.borrow(), borrow_infos, pledges)?;
         let expiration_tools = self.encode_expiration_tool_as_expression(
             &expiration_tools, contract, location, pre_label, post_label);
@@ -3050,7 +3050,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
             .collect();
 
         let reborrow_signature = &contract.borrow_infos;
-        let expiration_tools = ExpirationTool::construct(
+        let expiration_tools = ExpirationTools::construct(
             self.procedure.get_tcx(), self.mir, reborrow_signature, pledges)?;
 
         self.encode_expiration_tool_as_package(
