@@ -125,6 +125,14 @@ impl<'tcx> From<mir::Place<'tcx>> for Place<'tcx> {
 }
 
 impl<'tcx> Place<'tcx> {
+    pub fn new_normal(place: mir::Place<'tcx>) -> Self {
+        Self::NormalPlace(place)
+    }
+
+    pub fn new_substituted(substituted_root: Local, place: mir::Place<'tcx>) -> Self {
+        Self::SubstitutedPlace { substituted_root, place }
+    }
+
     pub fn is_root(&self, local: Local) -> bool {
         // fn check_if_root(place: &mir::Place, local: Local) -> bool {
         //     match place {
