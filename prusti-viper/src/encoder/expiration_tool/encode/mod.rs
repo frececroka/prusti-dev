@@ -15,6 +15,8 @@ mod utils;
 
 struct ExpirationToolEncoder<'a, 'p, 'v: 'p, 'tcx: 'v> {
     procedure_encoder: &'a mut ProcedureEncoder<'p, 'v, 'tcx>,
+    /// The contract of the procedure we're encoding the expiration tool for.
+    contract: &'a ProcedureContract<'tcx>,
     /// If we encode an expiration tool for a function call, this location should point to the
     /// function call statement. If we encode an expiration for a function itself, this location
     /// should be `None`.
@@ -36,7 +38,7 @@ struct ExpirationToolEncoder<'a, 'p, 'v: 'p, 'tcx: 'v> {
 impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
     fn new(
         procedure_encoder: &'a mut ProcedureEncoder<'p, 'v, 'tcx>,
-        contract: &ProcedureContract<'tcx>,
+        contract: &'a ProcedureContract<'tcx>,
         return_location: Option<mir::Location>,
         call_location: Option<mir::Location>,
         pre_label: &'a str,
@@ -52,7 +54,8 @@ impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
 
         ExpirationToolEncoder {
             procedure_encoder,
-            return_location, call_location,
+            contract,
+            call_location, return_location,
             encoded_args, encoded_return,
             pre_label, post_label
         }
