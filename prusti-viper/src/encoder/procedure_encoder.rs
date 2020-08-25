@@ -91,6 +91,7 @@ pub struct ProcedureEncoder<'p, 'v: 'p, 'tcx: 'v> {
     cfg_blocks_map: HashMap<mir::BasicBlock, HashSet<CfgBlockIndex>>,
     // /// Contains the boolean local variables that became `true` the first time the block is executed
     cfg_block_has_been_executed: HashMap<mir::BasicBlock, vir::LocalVar>,
+    call_labels: HashMap<mir::Location, (String, String)>,
     // /// Contracts of functions called at given locations with map for replacing fake expressions.
     pub procedure_contracts:
         HashMap<mir::Location, (ProcedureContract<'tcx>, HashMap<vir::Expr, vir::Expr>)>,
@@ -155,6 +156,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
             label_after_location: HashMap::new(),
             cfg_block_has_been_executed: HashMap::new(),
             cfg_blocks_map: HashMap::new(),
+            call_labels: HashMap::new(),
             procedure_contracts: HashMap::new(),
             pure_var_for_preserving_value_map: HashMap::new(),
             init_info: init_info,
@@ -2286,6 +2288,8 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
 
         // Store a label for the post state
         let post_label = self.cfg_method.get_fresh_label_name();
+
+        self.call_labels.insert(location, (pre_label.clone(), post_label.clone()));
 
         let loan = self.polonius_info().get_call_loan_at_location(location);
         let (
