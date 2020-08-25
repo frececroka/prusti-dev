@@ -2,6 +2,7 @@ use std::fmt;
 
 use super::Context;
 use super::ExpirationTool;
+use super::ExpirationTools;
 
 impl fmt::Display for Context {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -9,6 +10,15 @@ impl fmt::Display for Context {
             Context::BeforeExpiry => write!(f, "before_expiry"),
             Context::AfterUnblocked => write!(f, "after_unblocked"),
         }
+    }
+}
+
+impl<'tcx> fmt::Display for ExpirationTools<'tcx> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for expiration_tool in self {
+            write!(f, "{}", expiration_tool)?;
+        }
+        Ok(())
     }
 }
 
