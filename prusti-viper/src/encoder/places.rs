@@ -151,4 +151,14 @@ impl<'tcx> Place<'tcx> {
             } => *substituted_root == local,
         }
     }
+
+    pub fn to_mir_place(&self) -> mir::Place<'tcx> {
+        match self.clone() {
+            Place::NormalPlace(place) => place,
+            Place::SubstitutedPlace { substituted_root, mut place } => {
+                place.local = substituted_root.into();
+                place
+            }
+        }
+    }
 }
