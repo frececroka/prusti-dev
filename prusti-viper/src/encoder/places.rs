@@ -133,6 +133,12 @@ impl<'tcx> Place<'tcx> {
         Self::SubstitutedPlace { substituted_root, place }
     }
 
+    pub fn from_place(original_root: mir::Local, mut place: mir::Place<'tcx>) -> Self {
+        let substituted_root = Local::new(place.local.index());
+        place.local = original_root;
+        Self::new_substituted(substituted_root, place)
+    }
+
     pub fn is_root(&self, local: Local) -> bool {
         // fn check_if_root(place: &mir::Place, local: Local) -> bool {
         //     match place {
