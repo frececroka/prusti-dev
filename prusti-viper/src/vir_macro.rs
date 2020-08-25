@@ -30,6 +30,11 @@ macro_rules! vir {
             vir!($exp),
             ::prusti_common::vir::FoldingBehaviour::Expr)
     };
+    (apply $exp: tt) => {
+        ::prusti_common::vir::Stmt::ApplyMagicWand(
+            vir!($exp),
+            ::prusti_common::vir::Position::default())
+    };
     (obtain $exp: tt) => {
         ::prusti_common::vir::Stmt::Obtain(
             vir!($exp),
