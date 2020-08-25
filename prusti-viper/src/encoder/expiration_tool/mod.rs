@@ -61,6 +61,38 @@ pub struct MagicWand<'tcx> {
     expiration_tools: ExpirationTools<'tcx>,
 }
 
+impl<'a, 'tcx: 'a> ExpirationTools<'tcx> {
+    pub fn blocking(&'a self) -> HashSet<&'a places::Place<'tcx>> {
+        self.into_iter().flat_map(|et| &et.blocking).collect()
+    }
+
+    pub fn blocked(&'a self) -> HashSet<&'a places::Place<'tcx>> {
+        self.into_iter().flat_map(|et| &et.blocked).collect()
+    }
+
+    /// Give us the expiration tools that represent the state after all the given places have
+    /// expired.
+    pub fn expire(&self,
+        places: impl IntoIterator<Item=&'a places::Place<'tcx>>
+    ) -> &ExpirationTools<'tcx> {
+        let mut places = places.into_iter();
+        if let Some(place) = places.next() {
+            let magic_wand = self.magic_wand(place).unwrap();
+            magic_wand.expiration_tools.expire(places)
+        } else {
+            self
+        }
+    }
+
+    /// Produces the magic wand that expires the given place.
+    fn magic_wand(&self, place: &'a places::Place<'tcx>) -> Option<&MagicWand<'tcx>> {
+        self.into_iter()
+            .flat_map(|et| et.magic_wands())
+            .filter(|mw| mw.expired() == place)
+            .next()
+    }
+}
+
 impl<'tcx> From<Vec<ExpirationTool<'tcx>>> for ExpirationTools<'tcx> {
     fn from(expiration_tools: Vec<ExpirationTool<'tcx>>) -> Self {
         Self(expiration_tools)
