@@ -382,7 +382,10 @@ pub struct PoloniusInfo<'a, 'tcx: 'a> {
     /// Position at which a specific loan was created.
     pub(crate) loan_position: HashMap<facts::Loan, mir::Location>,
     pub(crate) loan_at_position: HashMap<mir::Location, facts::Loan>,
-    pub(crate) loan_dest_places: HashMap<facts::Loan, mir::Place<'tcx>>,
+    /// This maps every loan that is created by a function call to the place it is stored in.
+    pub loan_to_place: HashMap<facts::Loan, mir::Place<'tcx>>,
+    /// This maps every place assigned by a function call to the loan stored in this place.
+    pub place_to_loan: HashMap<mir::Place<'tcx>, facts::Loan>,
     pub(crate) call_loan_at_position: HashMap<mir::Location, facts::Loan>,
     pub(crate) call_magic_wands: HashMap<facts::Loan, mir::Local>,
     pub place_regions: PlaceRegions,
@@ -416,7 +419,7 @@ fn add_fake_facts<'a, 'tcx: 'a>(
     tcx: ty::TyCtxt<'tcx>,
     mir: &'a mir::Body<'tcx>,
     place_regions: &PlaceRegions,
-    loan_dest_places: &mut HashMap<facts::Loan, mir::Place<'tcx>>,
+    loan_places: &mut Vec<(facts::Loan, mir::Place<'tcx>)>,
     call_magic_wands: &mut HashMap<facts::Loan, mir::Local>,
 ) -> (Vec<facts::Loan>, Vec<facts::Loan>, Vec<Vec<facts::Loan>>) {
     let mut reference_moves = Vec::new();
@@ -470,7 +473,7 @@ fn add_fake_facts<'a, 'tcx: 'a>(
                     for lhs_place in lhs_places {
                         if let Some(lhs_region) = place_regions.for_place(lhs_place) {
                             let loan = new_loan();
-                            loan_dest_places.insert(loan, lhs_place);
+                            loan_places.push((loan, lhs_place));
                             borrow_region.push((lhs_region, loan, point));
                             call_magic_wands.insert(loan, local);
                         }
@@ -503,7 +506,7 @@ fn add_fake_facts<'a, 'tcx: 'a>(
                     if let Some(lhs_region) = place_regions.for_place(lhs_place) {
                         let loan = new_loan();
                         reference_moves.push(loan);
-                        loan_dest_places.insert(loan, lhs_place);
+                        loan_places.push((loan, lhs_place));
                         borrow_region.push((lhs_region, loan, point));
                         new_incompatible.push(loan);
                         debug!("Adding generic: _ {:?} {:?} {:?}",
@@ -652,7 +655,6 @@ impl<'a, 'tcx: 'a> PoloniusInfo<'a, 'tcx> {
         let mir = procedure.get_mir();
         let def_path = tcx.hir().def_path(def_id.expect_local());
 
-        let mut loan_dest_places = HashMap::new();
 
         // Read Polonius facts.
         let facts_loader = load_polonius_facts(tcx, &def_path);
@@ -666,18 +668,18 @@ impl<'a, 'tcx: 'a> PoloniusInfo<'a, 'tcx> {
         debug!("Renumber path: {:?}", renumber_path);
         let place_regions = regions::load_place_regions(&renumber_path).unwrap();
 
-        let mut call_magic_wands = HashMap::new();
+        let loop_info = loops::ProcedureLoops::new(&mir);
 
         let mut all_facts = facts_loader.facts;
-
-        let loop_info = loops::ProcedureLoops::new(&mir);
+        let mut call_magic_wands = HashMap::new();
+        let mut loan_places = Vec::new();
         let (reference_moves, argument_moves, incompatible_loans) = add_fake_facts(
             &mut all_facts,
             &facts_loader.interner,
             tcx,
             &mir,
             &place_regions,
-            &mut loan_dest_places,
+            &mut loan_places,
             &mut call_magic_wands);
 
         Self::disconnect_universal_regions(tcx, mir, &place_regions, &mut all_facts);
@@ -730,6 +732,11 @@ impl<'a, 'tcx: 'a> PoloniusInfo<'a, 'tcx> {
         let loan_conflict_sets =
             compute_loan_conflict_sets(procedure, &loan_position, &all_facts, &output);
 
+        let loan_to_place = loan_places.iter().cloned().collect();
+        let place_to_loan = loan_places.iter().cloned()
+            .map(|(loan, place)| (place, loan))
+            .collect();
+
         let mut info = Self {
             tcx: tcx,
             mir: mir,
@@ -738,7 +745,8 @@ impl<'a, 'tcx: 'a> PoloniusInfo<'a, 'tcx> {
             interner: interner,
             loan_position: loan_position,
             loan_at_position: loan_at_position,
-            loan_dest_places,
+            loan_to_place: loan_to_place,
+            place_to_loan: place_to_loan,
             call_loan_at_position: call_loan_at_position,
             call_magic_wands: call_magic_wands,
             place_regions: place_regions,
@@ -786,7 +794,7 @@ impl<'a, 'tcx: 'a> PoloniusInfo<'a, 'tcx> {
     }
 
     pub fn get_loan_dest_place(&self, loan: &facts::Loan) -> Option<&mir::Place<'tcx>> {
-        self.loan_dest_places.get(loan)
+        self.loan_to_place.get(loan)
     }
 
     fn compute_loop_magic_wands(
