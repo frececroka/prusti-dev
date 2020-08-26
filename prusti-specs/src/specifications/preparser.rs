@@ -615,24 +615,8 @@ impl Parser {
         Ok(pledge)
     }
     pub fn extract_pledge_rhs_only(&mut self) -> syn::Result<PledgeWithoutId> {
-        let mut reference = None;
-        if self.input.contains_operator("=>") {
-            let ref_stream = self.input.create_stream_until("=>");
-            let parsed_expr = self.parse_rust_expression(ref_stream)?;
-
-            let expr = ExpressionWithoutId {
-                spec_id: common::SpecificationId::dummy(),
-                id: (),
-                expr: parsed_expr,
-            };
-            reference = Some(expr);
-            self.input.check_and_consume_operator("=>");
-        }
-
         let assertion = self.extract_assertion()?;
-
         Ok(PledgeWithoutId {
-            reference,
             lhs: None,
             rhs: assertion
         })

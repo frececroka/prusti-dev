@@ -9,11 +9,13 @@ use crate::encoder::builtin_encoder::BuiltinMethodKind;
 use crate::encoder::errors::PanicCause;
 use crate::encoder::errors::{EncodingError, ErrorCtxt};
 use crate::encoder::foldunfold;
+use crate::encoder::places;
 use crate::encoder::initialisation::InitInfo;
 use crate::encoder::loop_encoder::{LoopEncoder, LoopEncoderError};
 use crate::encoder::mir_encoder::{MirEncoder, FakeMirEncoder, PlaceEncoder};
 use crate::encoder::mir_encoder::{POSTCONDITION_LABEL, PRECONDITION_LABEL};
 use crate::encoder::mir_successor::MirSuccessor;
+use crate::encoder::expiration_tool::ExpirationTool;
 use crate::encoder::optimizer;
 use crate::encoder::places::{Local, LocalVariableManager, Place};
 use crate::encoder::Encoder;
@@ -63,23 +65,27 @@ use rustc_attr::IntType::SignedInt;
 use rustc_span::{MultiSpan, Span};
 use prusti_interface::specs::typed;
 use ::log::{trace, debug};
+use prusti_common::vir::Position;
+use prusti_interface::specs::typed::{AssertionKind, SpecificationSet};
+use prusti_specs::specifications::common::ProcedureSpecification;
+use crate::utils::fresh_name::FreshName;
 
-type Result<T> = std::result::Result<T, EncodingError>;
+pub type Result<T> = std::result::Result<T, EncodingError>;
 
 pub struct ProcedureEncoder<'p, 'v: 'p, 'tcx: 'v> {
-    encoder: &'p Encoder<'v, 'tcx>,
+    pub encoder: &'p Encoder<'v, 'tcx>,
     proc_def_id: ProcedureDefId,
-    procedure: &'p Procedure<'p, 'tcx>,
-    mir: &'p mir::Body<'tcx>,
-    cfg_method: vir::CfgMethod,
+    pub procedure: &'p Procedure<'p, 'tcx>,
+    pub mir: &'p mir::Body<'tcx>,
+    pub cfg_method: vir::CfgMethod,
     locals: LocalVariableManager<'tcx>,
     loop_encoder: LoopEncoder<'p, 'tcx>,
     auxiliary_local_vars: HashMap<String, vir::Type>,
-    mir_encoder: MirEncoder<'p, 'v, 'tcx>,
+    pub mir_encoder: MirEncoder<'p, 'v, 'tcx>,
     check_panics: bool,
     check_foldunfold_state: bool,
     polonius_info: Option<PoloniusInfo<'p, 'tcx>>,
-    procedure_contract: Option<ProcedureContract<'tcx>>,
+    pub procedure_contract: Option<ProcedureContract<'tcx>>,
     label_after_location: HashMap<mir::Location, String>,
     // /// Store the CFG blocks that encode a MIR block each.
     cfg_blocks_map: HashMap<mir::BasicBlock, HashSet<CfgBlockIndex>>,
@@ -209,7 +215,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         }
     }
 
-    fn polonius_info(&self) -> &PoloniusInfo<'p, 'tcx> {
+    pub fn polonius_info(&self) -> &PoloniusInfo<'p, 'tcx> {
         self.polonius_info.as_ref().unwrap()
     }
 
@@ -1203,7 +1209,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         }
     }
 
-    fn encode_transfer_permissions(
+    pub fn encode_transfer_permissions(
         &mut self,
         lhs: vir::Expr,
         rhs: vir::Expr,
@@ -1234,7 +1240,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         stmts
     }
 
-    fn encode_obtain(&mut self, expr: vir::Expr, pos: vir::Position) -> Vec<vir::Stmt> {
+    pub fn encode_obtain(&mut self, expr: vir::Expr, pos: vir::Position) -> Vec<vir::Stmt> {
         let mut stmts = vec![];
 
         stmts.push(vir::Stmt::Obtain(expr.clone(), pos));
@@ -1518,7 +1524,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         )
     }
 
-    fn encode_expiration_of_loans(
+    pub fn encode_expiration_of_loans(
         &mut self,
         loans: Vec<facts::Loan>,
         zombie_loans: &[facts::Loan],
@@ -2401,15 +2407,11 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
             encoded_target.is_none(),
             loan,
             false,
-        );
+        )?;
+
         // We inhale the magic wand just before applying it because we need
         // a magic wand that depends on the current value of ghost variables.
-        let _magic_wands: Vec<_> = magic_wands
-            .into_iter()
-            .map(|magic_wand| {
-                self.replace_old_places_with_ghost_vars(Some(&post_label), magic_wand)
-            })
-            .collect();
+        self.replace_old_places_with_ghost_vars(Some(&post_label), magic_wands);
 
         let post_perm_spec = replace_fake_exprs(post_type_spec);
         stmts.push(vir::Stmt::Inhale(
@@ -2840,110 +2842,38 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
 
     /// Encode the magic wand used in the postcondition with its
     /// functional specification. Returns (lhs, rhs).
-    fn encode_postcondition_magic_wand(
-        &self,
+    fn encode_postcondition_expiration_tool(
+        &mut self,
         location: Option<mir::Location>,
         contract: &ProcedureContract<'tcx>,
-        pre_label: &str,
-        post_label: &str,
-    ) -> Option<(vir::Expr, vir::Expr)> {
-        // Encode args and return.
-        let encoded_args: Vec<vir::Expr> = contract
-            .args
-            .iter()
-            .map(|local| self.encode_prusti_local(*local).into())
-            .collect();
-        let encoded_return: vir::Expr = self.encode_prusti_local(contract.returned_value).into();
-
+        pre_label: &str, post_label: &str
+    ) -> Result<Option<vir::Expr>> {
         let borrow_infos = &contract.borrow_infos;
         if borrow_infos.blocked.is_empty() {
-            return None;
+            return Ok(None)
         }
 
-        let mut pledges = contract.pledges();
-        assert!(pledges.len() <= 1,
-            "There can be at most one pledge in the function postcondition.");
-
-        let encode_place_perm = |place, mutability, label| {
-            let perm_amount = match mutability {
-                Mutability::Not => vir::PermAmount::Read,
-                Mutability::Mut => vir::PermAmount::Write,
-            };
-            let (place_expr, place_ty, _) = self.encode_generic_place(contract.def_id, location, place);
-            let vir_access =
-                vir::Expr::pred_permission(place_expr.clone().old(label), perm_amount).unwrap();
-            let inv = self
-                .encoder
-                .encode_invariant_func_app(place_ty, place_expr.old(label));
-            vir::Expr::and(vir_access, inv)
+        let pledges = match &contract.specification {
+            SpecificationSet::Procedure(specification) => &specification.pledges,
+            _ => unreachable!(),
         };
 
-        let mut lhs: Vec<_> = borrow_infos.blocking.iter()
-            .map(|place| encode_place_perm(place, borrow_infos.mutability[place], post_label))
-            .collect();
-        let mut rhs: Vec<_> = borrow_infos.blocked.iter()
-            .map(|place| encode_place_perm(place, borrow_infos.mutability[place], pre_label))
+        let pledges = pledges.iter()
+            .map(|pledge| pledge.rhs.clone())
             .collect();
 
-        if let Some(typed::Pledge { reference, lhs: body_lhs, rhs: body_rhs}) = pledges.first() {
-            debug!(
-                "pledge reference={:?} lhs={:?} rhs={:?}",
-                reference, body_lhs, body_rhs
-            );
-            assert!(
-                reference.is_none(),
-                "The reference should be none in postcondition."
-            );
-            let mut assertion_lhs = if let Some(body_lhs) = body_lhs {
-                self.encoder.encode_assertion(
-                    &body_lhs,
-                    &self.mir,
-                    pre_label,
-                    &encoded_args,
-                    Some(&encoded_return),
-                    false,
-                    None,
-                    ErrorCtxt::GenericExpression,
-                )
-            } else {
-                true.into()
-            };
-            let mut assertion_rhs = self.encoder.encode_assertion(
-                &body_rhs,
-                &self.mir,
-                pre_label,
-                &encoded_args,
-                Some(&encoded_return),
-                false,
-                None,
-                ErrorCtxt::GenericExpression,
-            );
-            assertion_lhs =
-                self.wrap_arguments_into_old(assertion_lhs, pre_label, contract, &encoded_args);
-            assertion_rhs =
-                self.wrap_arguments_into_old(assertion_rhs, pre_label, contract, &encoded_args);
-            let ty = self.locals.get_type(contract.returned_value);
-            let (encoded_deref, ..) = self.mir_encoder.encode_deref(encoded_return.clone(), ty);
-            let original_expr = encoded_deref;
-            let old_expr = vir::Expr::labelled_old(post_label, original_expr.clone());
-            // TODO ??
-            assertion_lhs = assertion_lhs.replace_place(&original_expr, &old_expr);
-            assertion_lhs = assertion_lhs.remove_redundant_old();
-            assertion_rhs = assertion_rhs.replace_place(&original_expr, &old_expr);
-            assertion_rhs = assertion_rhs.remove_redundant_old();
-            lhs.push(assertion_lhs);
-            rhs.push(assertion_rhs);
-        }
-        let lhs = lhs.into_iter().conjoin();
-        let rhs = rhs.into_iter().conjoin();
-        Some((lhs, rhs))
+        let expiration_tools = ExpirationTool::construct(
+            self.procedure.get_tcx(), self.mir, borrow_infos.clone(), pledges)?;
+        let expiration_tools = self.encode_expiration_tool_as_expression(
+            &expiration_tools, pre_label, post_label);
+        Ok(Some(expiration_tools))
     }
 
     /// Wrap function arguments used in the postcondition into ``old``:
     ///
     /// +   For references wrap the base ``_1.var_ref``.
     /// +   For non-references wrap the entire place into old.
-    fn wrap_arguments_into_old(
+    pub fn wrap_arguments_into_old(
         &self,
         mut assertion: vir::Expr,
         pre_label: &str,
@@ -2992,15 +2922,15 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         _diverging: bool,
         loan: Option<facts::Loan>,
         function_end: bool,
-    ) -> (
+    ) -> Result<(
         vir::Expr,                   // Returned permissions from types.
         Option<vir::Expr>,           // Permission of the return value.
         vir::Expr,                   // Invariants.
         vir::Expr,                   // Functional specification.
-        Vec<vir::Expr>,              // Magic wands.
+        vir::Expr,                   // Magic wands.
         Vec<(vir::Expr, vir::Expr)>, // Read permissions that need to be transferred to a new place.
         Option<vir::Expr>, // Specification strengthening, in case of trait method implementation.
-    ) {
+    )> {
         let mut type_spec = vec![];
         let mut invs_spec = vec![];
         let mut read_transfer = vec![]; // Permissions taken as read
@@ -3050,25 +2980,21 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
 
         let encoded_return: vir::Expr = self.encode_prusti_local(contract.returned_value).into();
 
-        let mut magic_wands = Vec::new();
-        if let Some((mut lhs, mut rhs)) =
-            self.encode_postcondition_magic_wand(location, contract, pre_label, post_label)
-        {
+        let magic_wands = self.encode_postcondition_expiration_tool(
+            location, contract, pre_label, post_label)?;
+        let magic_wands = if let Some(mut magic_wands) = magic_wands {
             if let Some((location, fake_exprs)) = magic_wand_store_info {
-                let replace_fake_exprs = |mut expr: vir::Expr| -> vir::Expr {
-                    for (fake_arg, arg_expr) in fake_exprs.iter() {
-                        expr = expr.replace_place(&fake_arg, arg_expr);
-                    }
-                    expr
-                };
-                lhs = replace_fake_exprs(lhs);
-                rhs = replace_fake_exprs(rhs);
-                debug!("Insert ({:?} {:?}) at {:?}", lhs, rhs, location);
-                self.magic_wand_at_location
-                    .insert(location, (post_label.to_string(), lhs.clone(), rhs.clone()));
+                for (fake_arg, arg_expr) in fake_exprs.iter() {
+                    magic_wands = magic_wands.replace_place(&fake_arg, arg_expr);
+                }
+                // debug!("Insert ({:?} {:?}) at {:?}", lhs, rhs, location);
+                // self.magic_wand_at_location
+                //     .insert(location, (post_label.to_string(), lhs.clone(), rhs.clone()));
             }
-            magic_wands.push(vir::Expr::magic_wand(lhs, rhs, loan.map(|l| l.into())));
-        }
+            magic_wands
+        } else {
+            vir::Expr::Const(vir::Const::Bool(true), Position::default())
+        };
 
         // Encode permissions for return type
         // TODO: Clean-up: remove unnecessary Option.
@@ -3129,7 +3055,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
             ).conjoin()
             .set_default_pos(func_spec_pos);
 
-        (
+        Ok((
             type_spec.into_iter().conjoin(),
             return_perm,
             invs_spec.into_iter().conjoin(),
@@ -3137,7 +3063,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
             magic_wands,
             read_transfer,
             strengthening_spec,
-        )
+        ))
     }
 
     /// Modelling move as simple assignment on Viper level has a consequence
@@ -3210,101 +3136,22 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         post_label: &str,
         location: mir::Location,
     ) -> Result<Vec<vir::Stmt>> {
-        debug!("encode_package_end_of_method '{:?}'", location);
-        let mut stmts = Vec::new();
+        let contract = self.procedure_contract.as_ref().unwrap();
 
-        // Package magic wand(s)
-        if let Some((lhs, rhs)) =
-            self.encode_postcondition_magic_wand(None, self.procedure_contract(), pre_label, post_label)
-        {
-            let pos = self
-                .encoder
-                .error_manager()
-                .register(self.mir.span, ErrorCtxt::PackageMagicWandForPostcondition);
+        let pledges = match &contract.specification {
+            SpecificationSet::Procedure(specification) => &specification.pledges,
+            _ => unreachable!(),
+        };
 
-            let blocker = mir::RETURN_PLACE;
-            // TODO: Check if it really is always start and not the mid point.
-            let start_point = self
-                .polonius_info()
-                .get_point(location, facts::PointType::Start);
+        let pledges = pledges.iter()
+            .map(|pledge| pledge.rhs.clone())
+            .collect();
 
-            let mut package_stmts =
-                if let Some(region) = self.polonius_info().place_regions.for_local(blocker) {
-                    let (all_loans, zombie_loans) = self
-                        .polonius_info()
-                        .get_all_loans_kept_alive_by(start_point, region);
-                    self.encode_expiration_of_loans(all_loans, &zombie_loans, location, None)?
-                } else {
-                    unreachable!(); // Really?
-                };
-
-            // We need to make sure that the lhs of the magic wand is
-            // fully folded before the label.
-            // To do so, we need to use the lhs without functional specification.
-            let current_lhs = lhs
-                .clone()
-                .map_labels(|label| {
-                    if label == post_label {
-                        None
-                    } else {
-                        Some(label)
-                    }
-                })
-                .filter_perm_conjunction();
-            stmts.extend(self.encode_obtain(current_lhs, pos));
-
-            // lhs must be phrased in terms of post state.
-            let post_label = post_label.to_string();
-            stmts.push(vir::Stmt::Label(post_label.clone()));
-
-            // Make the deref of reference arguments to be folded (see issue #47)
-            package_stmts.push(vir::Stmt::comment("Fold predicates for &mut args"));
-            for arg_index in self.mir.args_iter() {
-                let arg_ty = self.mir.local_decls[arg_index].ty;
-                if self.mir_encoder.is_reference(arg_ty) {
-                    // will panic if attempting to encode unsupported type
-                    let encoded_arg = self.mir_encoder.encode_local(arg_index).unwrap();
-                    let (deref_place, ..) =
-                        self.mir_encoder.encode_deref(encoded_arg.into(), arg_ty);
-                    let old_deref_place = deref_place.clone().old(&pre_label);
-                    package_stmts.extend(self.encode_transfer_permissions(
-                        deref_place,
-                        old_deref_place.clone(),
-                        location,
-                    ));
-                    let predicate =
-                        vir::Expr::pred_permission(old_deref_place, vir::PermAmount::Write)
-                            .unwrap();
-                    package_stmts.extend(self.encode_obtain(predicate, pos));
-                }
-            }
-
-            // The fold-unfold algorithm will fill the body of the package statement
-            let vars: Vec<_> = self
-                .old_ghost_vars
-                .iter()
-                .map(|(name, typ)| vir::LocalVar::new(name.clone(), typ.clone()))
-                .collect();
-            stmts.push(vir::Stmt::package_magic_wand(
-                lhs,
-                rhs,
-                package_stmts,
-                post_label.clone(),
-                vars,
-                pos,
-            ));
-
-            // We need to transfer all permissions from old[post](lhs) to lhs.
-            let borrow_infos = &self.procedure_contract().borrow_infos;
-            for path in &borrow_infos.blocking.clone() {
-                let (encoded_place, _, _) = self.encode_generic_place(
-                    self.procedure_contract().def_id, None, path);
-                let old_place = encoded_place.clone().old(post_label.clone());
-                stmts.extend(self.encode_transfer_permissions(old_place, encoded_place, location));
-            }
-        }
-
-        Ok(stmts)
+        let reborrow_signature = contract.borrow_infos.clone();
+        let expiration_tools = ExpirationTool::construct(
+            self.procedure.get_tcx(), self.mir, reborrow_signature, pledges)?;
+        self.encode_expiration_tool_as_package(
+            &expiration_tools, location, pre_label, post_label)
     }
 
     /// Encode postcondition exhale on the definition side.
@@ -3312,7 +3159,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         &mut self,
         return_cfg_block: CfgBlockIndex,
         postcondition_strengthening: Option<typed::Assertion<'tcx>>,
-    ) {
+    ) -> Result<()> {
         // This clone is only due to borrow checker restrictions
         let contract = self.procedure_contract().clone();
 
@@ -3335,7 +3182,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
                 false,
                 None,
                 true,
-            );
+            )?;
 
         // Find which arguments are blocked by the returned reference.
         let blocked_places = contract.borrow_infos.blocked;
@@ -3474,12 +3321,12 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
                 vir::Stmt::Exhale(access, perm_pos),
             );
         }
-        for magic_wand in magic_wands {
-            self.cfg_method.add_stmt(
-                return_cfg_block,
-                vir::Stmt::Exhale(magic_wand, perm_pos),
-            );
-        }
+        self.cfg_method.add_stmt(
+            return_cfg_block,
+            vir::Stmt::Exhale(magic_wands, perm_pos),
+        );
+
+        Ok(())
     }
 
     fn get_pure_var_for_preserving_value(
@@ -3916,7 +3763,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
     }
 
     // TODO: What is this?
-    fn encode_prusti_local(&self, local: Local) -> vir::LocalVar {
+    pub fn encode_prusti_local(&self, local: Local) -> vir::LocalVar {
         let var_name = self.locals.get_name(local);
         let type_name = self
             .encoder
@@ -3943,7 +3790,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
     /// `containing_def_id` – MIR body in which the place is defined. `location`
     /// `location` – MIR terminator that makes the function call. If None,
     /// then we assume that `containing_def_id` is local.
-    fn encode_generic_place(
+    pub fn encode_generic_place(
         &self,
         containing_def_id: rustc_hir::def_id::DefId,
         location: Option<mir::Location>,

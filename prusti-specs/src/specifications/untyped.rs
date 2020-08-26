@@ -74,7 +74,6 @@ impl Pledge {
         let pledge = if let Some(spec_id_lhs) = spec_id_lhs {
             let pledge = parser.extract_pledge()?;
             Pledge {
-                reference: pledge.reference.assign_id(spec_id_rhs, id_generator),
                 lhs: pledge.lhs.assign_id(spec_id_lhs, id_generator),
                 rhs: pledge.rhs.assign_id(spec_id_rhs, id_generator),
             }
@@ -83,7 +82,6 @@ impl Pledge {
             let pledge = parser.extract_pledge_rhs_only()?;
             assert!(pledge.lhs.is_none());
             Pledge {
-                reference: pledge.reference.assign_id(spec_id_rhs, id_generator),
                 lhs: None,
                 rhs: pledge.rhs.assign_id(spec_id_rhs, id_generator),
             }
