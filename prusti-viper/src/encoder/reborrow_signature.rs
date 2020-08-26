@@ -1,6 +1,7 @@
+#![warn(warnings)]
+
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::fmt;
 use std::hash::Hash;
 
 use itertools::Itertools;
@@ -15,13 +16,10 @@ use rustc_middle::mir;
 use rustc_middle::ty;
 use rustc_middle::ty::OutlivesPredicate;
 use rustc_middle::ty::ParamEnv;
-use rustc_middle::ty::Predicate;
 use rustc_middle::ty::PredicateAtom;
 use rustc_middle::ty::PredicateKind;
 use rustc_middle::ty::Region;
 use rustc_middle::ty::TyCtxt;
-
-use crate::encoder::places;
 
 /// Contains information about which input references a given output reference can re-borrow.
 #[derive(Debug, Clone)]
