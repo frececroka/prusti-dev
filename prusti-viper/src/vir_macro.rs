@@ -80,8 +80,8 @@ macro_rules! vir {
             Box::new(vir!($consequent)),
             ::prusti_common::vir::Position::default())
     };
-    ($lhs: tt --* $rhs: tt) => {
-        ::prusti_common::vir::Expr::magic_wand(vir!($lhs), vir!($rhs), None)
+    ($lhs: tt {$borrow: expr} --* $rhs: tt) => {
+        ::prusti_common::vir::Expr::magic_wand(vir!($lhs), vir!($rhs), $borrow)
     };
     (forall $($name: ident : $type: ident),+ :: {$trigger: tt} $body: tt) => {
         ::prusti_common::vir::Expr::ForAll(

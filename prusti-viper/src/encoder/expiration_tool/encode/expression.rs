@@ -1,5 +1,7 @@
 use prusti_common::vir;
+use prusti_common::vir::borrows::Borrow;
 use prusti_common::vir::ExprIterator;
+use prusti_interface::environment::mir_utils::PlaceAddProjection;
 use rustc_hir::Mutability;
 use rustc_middle::mir;
 
@@ -60,6 +62,13 @@ impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
     pub(super) fn magic_wand_as_expression(&mut self,
         magic_wand: &MagicWand<'tcx>
     ) -> (vir::Expr, Vec<Binding>) {
+        let expired_borrow: Option<Borrow> = if self.call_location.is_some() {
+            let expired_place = magic_wand.expired().to_mir_place().truncate(self.tcx(), 1);
+            let polonius_info = self.procedure_encoder.polonius_info();
+            let expired_loan = polonius_info.place_to_loan[&expired_place];
+            Some(expired_loan.into())
+        } else { None };
+
         let expired_perm = self.procedure_encoder.encode_place_perm(
             magic_wand.expired(), Mutability::Mut, self.call_location, self.post_label);
 
@@ -103,7 +112,7 @@ impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
                 vir::Expr::LetExpr(var, Box::new(expr), Box::new(rhs), pos)
             });
 
-        let expr = vir!([expired_perm] --* (
+        let expr = vir!([expired_perm] {expired_borrow} --* (
             [unblocked_perm] &&
             [pledges_and_nested_expiration_tools]
         ));
