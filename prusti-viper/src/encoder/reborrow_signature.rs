@@ -37,6 +37,12 @@ pub struct ReborrowSignature<P: Eq + Hash + fmt::Debug> {
     pub reborrows: HashMap<P, Vec<P>>
 }
 
+impl<P: Eq + Hash + Ord + fmt::Debug> ReborrowSignature<P> {
+    pub fn blocking(&self) -> impl Iterator<Item=&P> {
+        self.blocking.iter().sorted()
+    }
+}
+
 impl<'tcx> ReborrowSignature<mir::Place<'tcx>> {
     /// Constructs the re-borrow signature for the given `def_id`. The `tymap` maps generic
     /// parameters to their actual values.

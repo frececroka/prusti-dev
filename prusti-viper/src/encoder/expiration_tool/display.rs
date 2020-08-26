@@ -31,6 +31,7 @@ impl<'tcx> fmt::Display for ExpirationTool<'tcx> {
         writeln!(f, "  blocked: {}", blocked)?;
         writeln!(f, "  magic_wands:")?;
         for magic_wand in &self.magic_wands {
+            writeln!(f, "   - namespace: {:?}", magic_wand.namespace)?;
             writeln!(f, "   - expired: {:?}", magic_wand.expired())?;
             let unblocked = (&magic_wand.unblocked).join_to_string(", ", |u| format!("{:?}", u));
             writeln!(f, "     unblocked: {:?}", unblocked)?;

@@ -2,7 +2,6 @@ use prusti_common::vir;
 
 use crate::encoder::expires_first_domain;
 use crate::encoder::procedure_encoder::Result;
-use crate::utils::namespace::Namespace;
 
 use super::binding::Binding;
 use super::binding::LiftBindings;
@@ -13,9 +12,8 @@ use super::super::MagicWand;
 impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
     pub(super) fn encode_expiration_tool_branches<B>(&mut self,
         expiration_tool: &ExpirationTool<'tcx>,
-        mut namespace: Namespace,
         mut encode_branch: impl FnMut(
-            &mut Self, vir::Expr, &MagicWand<'tcx>, Namespace,
+            &mut Self, vir::Expr, &MagicWand<'tcx>
         ) -> Result<(B, Vec<Binding>)>
     ) -> Result<(Vec<B>, Vec<Binding>)> {
         let blocking_representative = expiration_tool.blocking.len();
@@ -27,8 +25,7 @@ impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
                     vec![
                         vir::Expr::const_int(expired_place as i64),
                         vir::Expr::const_int(blocking_representative as i64)]);
-                let namespace = namespace.next_child();
-                encode_branch(self, antecedent, magic_wand, namespace)
+                encode_branch(self, antecedent, magic_wand)
             })
             .collect::<Result<Vec<_>>>()?
             .into_iter().lift_bindings();

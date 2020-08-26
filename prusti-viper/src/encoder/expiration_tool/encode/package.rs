@@ -10,7 +10,6 @@ use crate::encoder::borrows::ProcedureContract;
 use crate::encoder::places;
 use crate::encoder::procedure_encoder::ProcedureEncoder;
 use crate::encoder::procedure_encoder::Result;
-use crate::utils::namespace::Namespace;
 
 use super::binding::Binding;
 use super::binding::encode_binding;
@@ -46,12 +45,8 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
             self, contract, Some(location), None, pre_label, post_label);
 
         // The expiration tool proper.
-        let mut namespace = Namespace::new("et");
         let (package_stmts, bindings): (Vec<_>, Vec<_>) = expiration_tools.into_iter()
-            .map(|expiration_tool| {
-                let namespace = namespace.next_child();
-                encoder.expiration_tool_as_package(expiration_tool, namespace)
-            })
+            .map(|expiration_tool| encoder.expiration_tool_as_package(expiration_tool))
             .collect::<Result<Vec<_>>>()?
             .into_iter().lift_bindings();
         let package_stmts = package_stmts.into_iter().flatten().collect::<Vec<_>>();
@@ -72,14 +67,13 @@ impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
     /// This encodes the given expiration tool as a sequence of Viper statements that package
     /// all the magic wands it contains directly.
     pub(super) fn expiration_tool_as_package(&mut self,
-        expiration_tool: &ExpirationTool<'tcx>,
-        namespace: Namespace,
+        expiration_tool: &ExpirationTool<'tcx>
     ) -> Result<(Vec<vir::Stmt>, Vec<Binding>)> {
         self.encode_expiration_tool_branches(
-            expiration_tool, namespace,
-            |encoder, antecedent, magic_wand, namespace| {
+            expiration_tool,
+            |encoder, antecedent, magic_wand| {
                 let (encoded_magic_wand, bindings) =
-                    encoder.magic_wand_as_package(magic_wand, namespace)?;
+                    encoder.magic_wand_as_package(magic_wand)?;
                 let branch = vir!(if ([antecedent]) { [encoded_magic_wand] });
                 Ok((branch, bindings))
             }
@@ -88,11 +82,9 @@ impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
 
     /// This encodes the given magic wand as a Viper package statement.
     fn magic_wand_as_package(&mut self,
-        magic_wand: &MagicWand<'tcx>,
-        mut namepsace: Namespace
+        magic_wand: &MagicWand<'tcx>
     ) -> Result<(vir::Stmt, Vec<Binding>)> {
-        let (magic_wand_expr, magic_wand_bindings) =
-            self.magic_wand_as_expression(magic_wand, namepsace.clone());
+        let (magic_wand_expr, magic_wand_bindings) = self.magic_wand_as_expression(magic_wand);
         let (lhs, rhs) = match magic_wand_expr {
             vir::Expr::MagicWand(lhs, rhs, _, _) => (lhs.as_ref().clone(), rhs.as_ref().clone()),
             _ => unreachable!()
@@ -138,10 +130,7 @@ impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
         // Package the nested expiration tools.
         let (package_expiration_tools, expiration_tools_bindings): (Vec<_>, Vec<_>) =
             magic_wand.expiration_tools()
-                .map(|et| {
-                    let namespace = namepsace.next_child();
-                    self.expiration_tool_as_package(et, namespace)
-                })
+                .map(|et| self.expiration_tool_as_package(et))
                 .collect::<Result<Vec<_>>>()?.into_iter()
                 .lift_bindings();
         let package_expiration_tools = package_expiration_tools

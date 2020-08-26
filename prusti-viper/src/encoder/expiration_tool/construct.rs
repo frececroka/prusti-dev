@@ -11,6 +11,7 @@ use rustc_middle::ty;
 use crate::encoder::places;
 use crate::encoder::procedure_encoder::Result;
 use crate::encoder::reborrow_signature::ReborrowSignature;
+use crate::utils::namespace::Namespace;
 
 use super::ExpirationTool;
 use super::ExpirationTools;
@@ -31,6 +32,8 @@ impl<'tcx> ExpirationTools<'tcx> {
             .enumerate().map(|(i, p)| (p, i))
             .collect();
 
+        let namespace = Namespace::new("et");
+
         let pledges = pledges.into_iter()
             .map(|pledge| {
                 let dependants = identify_dependencies(tcx, mir, &reborrows, &pledge)?;
@@ -38,23 +41,26 @@ impl<'tcx> ExpirationTools<'tcx> {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(Self::construct1(reborrows, &pledges, &place_mapping))
+        Ok(Self::construct1(namespace, reborrows, &pledges, &place_mapping))
     }
 
     fn construct1(
+        mut namespace: Namespace,
         reborrows: &ReborrowSignature<places::Place<'tcx>>,
         pledges: &[PledgeWithDependencies<'tcx>],
         place_mapping: &HashMap<places::Place<'tcx>, usize>
     ) -> Self {
         split_reborrows(reborrows, pledges.to_vec()).into_iter()
             .sorted_by_key(|(reborrows, _)| reborrows.blocking.iter().min().cloned())
-            .map(|(reborrows, pledges)| ExpirationTool::construct2(&reborrows, &pledges, place_mapping))
+            .map(|(reborrows, pledges)| ExpirationTool::construct2(
+                namespace.next_child(), &reborrows, &pledges, place_mapping))
             .collect::<Vec<_>>().into()
     }
 }
 
 impl<'tcx> ExpirationTool<'tcx> {
     fn construct2(
+        mut namespace: Namespace,
         reborrows: &ReborrowSignature<places::Place<'tcx>>,
         pledges: &[PledgeWithDependencies<'tcx>],
         place_mapping: &HashMap<places::Place<'tcx>, usize>
@@ -64,7 +70,9 @@ impl<'tcx> ExpirationTool<'tcx> {
 
         let mut magic_wands = Vec::new();
 
-        for expired in blocking.clone() {
+        for expired in reborrows.blocking().cloned() {
+            let mut namespace = namespace.next_child();
+
             // Expire the blocking reference and obtain the updated reborrow information.
             let (reborrows, unblocked) = reborrows.expire_output(&expired);
 
@@ -81,9 +89,11 @@ impl<'tcx> ExpirationTool<'tcx> {
             // The nested expiration tools. Right now there is just a single one, but soon this
             // will be optimized to provide a separate expiration tool for every connected
             // component of the reborrowing graph.
-            let expiration_tools = ExpirationTools::construct1(&reborrows, pledges, place_mapping);
+            let expiration_tools = ExpirationTools::construct1(
+                namespace.next_child(), &reborrows, pledges, place_mapping);
 
             let magic_wand = MagicWand {
+                namespace,
                 expired, unblocked,
                 pledges: ripe_pledges,
                 expiration_tools
