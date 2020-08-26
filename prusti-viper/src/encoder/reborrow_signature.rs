@@ -25,7 +25,7 @@ use crate::encoder::places;
 
 /// Contains information about which input references a given output reference can re-borrow.
 #[derive(Debug, Clone)]
-pub struct ReborrowSignature<P: Eq + Hash + fmt::Debug> {
+pub struct ReborrowSignature<P> {
     /// This stores for every place the mutability of the corresponding reference.
     pub mutability: HashMap<P, Mutability>,
     /// This stores all places that are blocked after the function returns.
@@ -37,9 +37,22 @@ pub struct ReborrowSignature<P: Eq + Hash + fmt::Debug> {
     pub reborrows: HashMap<P, Vec<P>>
 }
 
-impl<P: Eq + Hash + Ord + fmt::Debug> ReborrowSignature<P> {
+impl<P: Ord> ReborrowSignature<P> {
     pub fn blocking(&self) -> impl Iterator<Item=&P> {
         self.blocking.iter().sorted()
+    }
+}
+
+impl<'a, P: Eq + Hash + 'a> ReborrowSignature<P> {
+    const NO_PLACES: &'a [P] = &[];
+
+    /// Returns all input places that the given output place can re-borrow.
+    pub fn reborrows(&self, output: &P) -> &[P] {
+        if let Some(input_places) = self.reborrows.get(output) {
+            input_places
+        } else {
+            Self::NO_PLACES
+        }
     }
 }
 
@@ -131,7 +144,7 @@ impl<'tcx> ReborrowSignature<mir::Place<'tcx>> {
     }
 }
 
-impl<'a, P: Eq + Hash + Clone + fmt::Debug + 'a> ReborrowSignature<P> {
+impl<P: Clone + Eq + Hash> ReborrowSignature<P> {
     pub fn new(
         mutability: HashMap<P, Mutability>,
         reborrows: HashMap<P, Vec<P>>
@@ -179,8 +192,8 @@ impl<'a, P: Eq + Hash + Clone + fmt::Debug + 'a> ReborrowSignature<P> {
     }
 }
 
-impl<'a, P: Eq + Hash + fmt::Debug + 'a> ReborrowSignature<P> {
-    pub fn map<Q: Eq + Hash + Clone + fmt::Debug>(self,
+impl<P: Eq + Hash> ReborrowSignature<P> {
+    pub fn map<Q: Clone + Eq + Hash>(self,
         f: impl Fn(P) -> Q
     ) -> ReborrowSignature<Q> {
         let mutability = self.mutability.into_iter()
@@ -195,21 +208,10 @@ impl<'a, P: Eq + Hash + fmt::Debug + 'a> ReborrowSignature<P> {
         ReborrowSignature::new(mutability, reborrows)
     }
 
-    pub fn map_with_into<Q: Eq + Hash + Clone + fmt::Debug + From<P>>(
+    pub fn map_with_into<Q: Clone + Eq + Hash + From<P>>(
         self
     ) -> ReborrowSignature<Q> {
         self.map(|p| p.into())
-    }
-
-    const NO_PLACES: &'a [P] = &[];
-
-    /// Returns all input places that the given output place can re-borrow.
-    pub fn reborrows(&self, output: &P) -> &[P] {
-        if let Some(input_places) = self.reborrows.get(output) {
-            input_places
-        } else {
-            Self::NO_PLACES
-        }
     }
 }
 
