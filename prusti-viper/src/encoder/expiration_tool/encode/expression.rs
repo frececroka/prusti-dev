@@ -1,6 +1,7 @@
 use prusti_common::vir;
 use prusti_common::vir::borrows::Borrow;
 use prusti_common::vir::ExprIterator;
+use prusti_interface::environment::mir_utils::EraseAllRegions;
 use prusti_interface::environment::mir_utils::PlaceAddProjection;
 use rustc_hir::Mutability;
 use rustc_middle::mir;
@@ -64,8 +65,9 @@ impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
     ) -> (vir::Expr, Vec<Binding>) {
         let expired_borrow: Option<Borrow> = if self.call_location.is_some() {
             let expired_place = magic_wand.expired().to_mir_place().truncate(self.tcx(), 1);
+            let expired_place = self.tcx().erase_all_regions(&expired_place);
             let polonius_info = self.procedure_encoder.polonius_info();
-            let expired_loan = polonius_info.place_to_loan[&expired_place];
+            let expired_loan = polonius_info.call_place_to_loan[&expired_place];
             Some(expired_loan.into())
         } else { None };
 

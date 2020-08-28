@@ -2291,7 +2291,8 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
 
         self.call_labels.insert(location, (pre_label.clone(), post_label.clone()));
 
-        let loan = self.polonius_info().get_call_loan_at_location(location);
+        // TODO: let loan = self.polonius_info().get_call_loan_at_location(location);
+        let loan = None;
         let (
             post_type_spec,
             return_type_spec,
