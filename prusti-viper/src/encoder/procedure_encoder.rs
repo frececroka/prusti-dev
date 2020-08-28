@@ -1415,9 +1415,12 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         )
     }
 
+    /// * `expired_loan` is the loan that is expiring.
+    /// * `node` is the re-borrowing node associated with this loan.
+    /// * `location` is the location where the loan expires.
     fn construct_vir_reborrowing_node_for_call(
         &mut self,
-        expired_loan: facts::Loan,
+        expiring_loan: facts::Loan,
         node: &ReborrowingDAGNode,
         location: mir::Location,
     ) -> vir::borrows::Node {
@@ -2745,6 +2748,9 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
 
     /// Encode the magic wand used in the postcondition with its
     /// functional specification. Returns (lhs, rhs).
+    ///
+    /// * `location` is the location of the function call (if we're encoding a function call),
+    /// otherwise (if we encode the function itself) it is `None`.
     fn encode_postcondition_expiration_tool(
         &mut self,
         location: Option<mir::Location>,

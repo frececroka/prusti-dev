@@ -6,6 +6,9 @@ use crate::encoder::places;
 use crate::encoder::procedure_encoder::ProcedureEncoder;
 
 impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
+    /// Encodes permissions for the given place as a Viper expression. The `location` must be
+    /// `None` if the place is a normal place, and it must point to the function application if
+    /// the place is a substituted place.
     pub fn encode_place_perm(&self,
         place: &places::Place<'tcx>,
         mutability: Mutability,
