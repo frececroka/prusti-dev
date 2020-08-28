@@ -471,7 +471,7 @@ fn add_fake_facts<'a, 'tcx: 'a>(
                     }
                     let lhs_places = local.all_places(tcx, mir);
                     for lhs_place in lhs_places {
-                        if let Some(lhs_region) = place_regions.for_place(lhs_place) {
+                        if let Some(lhs_region) = place_regions.for_place(&lhs_place) {
                             let loan = new_loan();
                             loan_places.push((loan, lhs_place));
                             borrow_region.push((lhs_region, loan, point));
@@ -503,7 +503,7 @@ fn add_fake_facts<'a, 'tcx: 'a>(
                     };
                 let mut new_incompatible = Vec::new();
                 for lhs_place in lhs_places {
-                    if let Some(lhs_region) = place_regions.for_place(lhs_place) {
+                    if let Some(lhs_region) = place_regions.for_place(&lhs_place) {
                         let loan = new_loan();
                         reference_moves.push(loan);
                         loan_places.push((loan, lhs_place));
@@ -771,7 +771,7 @@ impl<'a, 'tcx: 'a> PoloniusInfo<'a, 'tcx> {
         all_facts: &mut AllInputFacts
     ) {
         let return_regions = mir::RETURN_PLACE.all_places(tcx, mir).into_iter()
-            .filter_map(|r| place_regions.for_place(r))
+            .filter_map(|r| place_regions.for_place(&r))
             .collect::<Vec<_>>();
 
         let input_regions = (1..=mir.arg_count)
@@ -1217,7 +1217,7 @@ impl<'a, 'tcx: 'a> PoloniusInfo<'a, 'tcx> {
         assignments.retain(|stmt| {
             let (lhs, _) = stmt.as_assign().unwrap_or_else(||
                 unreachable!("Borrow starts at statement {:?}", stmt));
-            self.place_regions.for_place(lhs) == Some(region)
+            self.place_regions.for_place(&lhs) == Some(region)
         });
 
         assignments.pop()

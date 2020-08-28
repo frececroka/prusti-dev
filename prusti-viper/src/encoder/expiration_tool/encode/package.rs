@@ -105,7 +105,7 @@ impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
 
         // Determine the loans that are kept alive by this reference.
         let base = expired_place.truncate(self.procedure_encoder.procedure.get_tcx(), 1);
-        let region = self.procedure_encoder.polonius_info().place_regions.for_place(base).unwrap();
+        let region = self.procedure_encoder.polonius_info().place_regions.for_place(&base).unwrap();
         let point_index = self.procedure_encoder.polonius_info().get_point(
             self.return_location.unwrap(), facts::PointType::Start);
         let (expired_loans, expired_zombie_loans) =
