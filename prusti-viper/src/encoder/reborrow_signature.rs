@@ -87,8 +87,8 @@ impl<'tcx> ReborrowSignature<mir::Place<'tcx>> {
         // Creates a list of items `(place, region)`, where `place` is a returned place and region
         // is the region associated with this place.
         let return_place = mir::RETURN_PLACE.into();
-        let return_ty = fn_sig.output().skip_binder().clone();
-        let outputs = enumerate_all_places(return_place, &return_ty, tcx).into_iter()
+        let return_ty = fn_sig.output().skip_binder();
+        let outputs = enumerate_all_places(return_place, return_ty, tcx).into_iter()
             .map(|(place, ty)| (place, tymap(ty)))
             .filter_map(|(place, ty)|
                 if let Some((region, _, mutability)) = ty.as_ty_ref() {
