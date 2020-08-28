@@ -1299,9 +1299,8 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
                         location,
                         end_location,
                     ),
-                ReborrowingKind::Call { loan, .. } => {
-                    self.construct_vir_reborrowing_node_for_call(&mir_dag, loan, node, location)
-                }
+                ReborrowingKind::Call { loan, .. } =>
+                    self.construct_vir_reborrowing_node_for_call(loan, node, location),
                 ReborrowingKind::ArgumentMove { loan } => {
                     let loan_location = self.polonius_info().get_loan_location(&loan);
                     let guard = self.construct_location_guard(loan_location);
@@ -1418,8 +1417,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
 
     fn construct_vir_reborrowing_node_for_call(
         &mut self,
-        mir_dag: &ReborrowingDAG,
-        loan: facts::Loan,
+        expired_loan: facts::Loan,
         node: &ReborrowingDAGNode,
         location: mir::Location,
     ) -> vir::borrows::Node {
