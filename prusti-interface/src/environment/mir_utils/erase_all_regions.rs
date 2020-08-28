@@ -12,7 +12,7 @@ pub trait EraseAllRegions<'tcx> {
 
 impl<'tcx> EraseAllRegions<'tcx> for TyCtxt<'tcx> {
     fn erase_all_regions<T>(self, value: &T) -> T
-        where T: TypeFoldable<'tcx> + std::fmt::Debug
+        where T: TypeFoldable<'tcx>
     {
         value.fold_with(&mut RegionEraserVisitor { tcx: self })
     }
