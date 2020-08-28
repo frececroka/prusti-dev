@@ -7,6 +7,7 @@ use std::hash::Hash;
 use itertools::Itertools;
 
 use prusti_interface::environment::mir_utils::enumerate_all_places;
+use prusti_interface::environment::mir_utils::EraseAllRegions;
 use prusti_interface::environment::mir_utils::PlaceAddProjection;
 use prusti_interface::environment::mir_utils::TyAsRef;
 use rustc_hir::def_id::DefId;
@@ -131,7 +132,8 @@ impl<'tcx> ReborrowSignature<mir::Place<'tcx>> {
             reborrows.insert(output.clone(), output_reborrows_from);
         }
 
-        let reborrow_signature = Self::new(mutability, reborrows);
+        let reborrow_signature = Self::new(mutability, reborrows)
+            .map(|place| tcx.erase_all_regions(&place));
 
         let returned_inputs = inputs.into_iter()
             .filter(|(input, _, _)| !reborrow_signature.blocked.contains(input))
