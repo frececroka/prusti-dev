@@ -90,6 +90,6 @@ macro_rules! vir {
             Box::new(vir!($body)),
             ::prusti_common::vir::Position::default())
     };
-    ([ $e: expr ]) => { $e };
+    ([ $e: expr ]) => { $e.clone() };
     (( $($tokens: tt)+ )) => { vir!($($tokens)+) }
 }
