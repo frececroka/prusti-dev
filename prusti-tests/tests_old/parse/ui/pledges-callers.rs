@@ -31,4 +31,15 @@ fn f1_caller() {
     assert!(p.x == 1);
 }
 
+fn f2(p: &mut Point) -> (&mut u32, &mut u32) {
+    (&mut p.x, &mut p.y)
+}
+
+fn f2_caller() {
+    let mut p = Point { x: 0, y: 0 };
+    let (px, py) = f2(&mut p);
+    *px += 1;
+    *py += 2;
+}
+
 fn main() {}

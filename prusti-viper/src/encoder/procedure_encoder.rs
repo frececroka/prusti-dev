@@ -1424,7 +1424,98 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         node: &ReborrowingDAGNode,
         location: mir::Location,
     ) -> vir::borrows::Node {
-        todo!("re-borrows are not supported.")
+        // Collect some useful data.
+        let tcx = self.encoder.env().tcx();
+
+        let call_location = self.polonius_info().get_loan_location(&expiring_loan);
+        let (contract, _) = &self.procedure_contracts[&call_location].clone();
+
+        let reborrow_signature = &contract.borrow_infos;
+
+        let def_id = ty::WithOptConstParam::unknown(contract.def_id.expect_local());
+        let (mir, _) = tcx.mir_validated(def_id);
+
+        let pledges = contract.pledges().iter().map(|pledge| pledge.rhs.clone()).collect();
+
+        let expiring_place = self.polonius_info().get_loan_call_place(&expiring_loan).unwrap();
+        let expiring_place = expiring_place.deref(tcx);
+        let expiring_place = Place::from_place(mir::RETURN_PLACE, expiring_place.clone());
+
+        let (active_loans, zombie_loans) =
+            self.polonius_info().get_all_active_loans(location);
+
+        let (expiring_loans, expiring_zombie_loans) =
+            self.polonius_info().get_all_loans_dying_at(location);
+
+        let expiring_places = expiring_loans.iter()
+            .filter_map(|loan| self.polonius_info().get_loan_call_place(loan))
+            .map(|place| place.clone().deref(tcx))
+            .collect::<HashSet<_>>();
+
+        let original_blocking = reborrow_signature.blocking.iter()
+            .map(|place| place.to_mir_place())
+            .collect::<HashSet<_>>();
+
+        let still_blocking = active_loans.iter()
+            .filter_map(|loan| self.polonius_info().get_loan_call_place(loan))
+            .map(|place| place.clone().deref(tcx))
+            .collect::<HashSet<_>>();
+
+        let expired_before = original_blocking.difference(&still_blocking)
+            .map(|place| Place::from_place(mir::RETURN_PLACE, place.clone()))
+            .collect::<HashSet<_>>();
+
+        // We construct the initial expiration tools.
+        let expiration_tools = ExpirationTools::construct(
+            tcx, &mir.borrow(), reborrow_signature, pledges
+        ).unwrap();
+
+        // And now we drill down into the expiration tools by expiring the places that have already
+        // expired.
+        let expiration_tools = expiration_tools.expire(expired_before.iter());
+        let magic_wand = expiration_tools.magic_wand(&expiring_place).unwrap();
+
+        let (pre_label, post_label) = self.call_labels[&call_location].clone();
+        let (encoded_magic_wand, bindings) = self.encode_magic_wand_as_expression(
+            &magic_wand, contract, Some(call_location), &pre_label, &post_label);
+
+        let encoded_magic_wand = self.replace_old_places_with_ghost_vars(None, encoded_magic_wand);
+
+        let (encoded_expired, _, _) = self.encode_generic_place(
+            self.proc_def_id, Some(call_location), magic_wand.expired());
+
+        let encoded_old_expired = encoded_expired.clone().old(post_label);
+
+        let transfer_perms = if node.incoming_zombies {
+            node.reborrowing_loans.iter().map(|in_loan| {
+                let in_location = self.polonius_info().get_loan_location(&in_loan);
+                let in_label = self.get_label_after_location(in_location).to_string();
+                let encoded_expired = encoded_expired.clone().old(in_label);
+                self.encode_transfer_permissions(
+                    encoded_expired, encoded_old_expired.clone(), call_location)
+            }).flatten().collect()
+        } else {
+            self.encode_transfer_permissions(
+                encoded_expired, encoded_old_expired.clone(), call_location)
+        };
+
+        let inhale_magic_wand = vir!(inhale [encoded_magic_wand]);
+        let apply_magic_wand = vir!(apply [encoded_magic_wand]);
+
+        let stmts = [
+            &transfer_perms[..],
+            &[inhale_magic_wand][..],
+            &[apply_magic_wand]
+        ].concat();
+
+        vir::borrows::Node::new(
+            self.construct_location_guard(call_location),
+            node.loan.into(),
+            convert_loans_to_borrows(&node.reborrowing_loans),
+            convert_loans_to_borrows(&node.reborrowed_loans),
+            stmts,
+            Vec::new(), Vec::new(), Vec::new(), None
+        )
     }
 
     pub fn encode_expiration_of_loans(

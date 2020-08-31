@@ -39,6 +39,18 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
 
         encoded_expiration_tools
     }
+
+    pub fn encode_magic_wand_as_expression(&mut self,
+        magic_wand: &MagicWand<'tcx>,
+        contract: &ProcedureContract<'tcx>,
+        call_location: Option<mir::Location>,
+        pre_label: &str,
+        post_label: &str
+    ) -> (vir::Expr, Vec<Binding>) {
+        let mut encoder = ExpirationToolEncoder::new(
+            self, contract, None, call_location, pre_label, post_label);
+        encoder.magic_wand_as_expression(magic_wand)
+    }
 }
 
 impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {

@@ -18,7 +18,7 @@ mod display;
 mod split_reborrows;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum Context {
+pub enum Context {
     BeforeExpiry, AfterUnblocked
 }
 
@@ -88,7 +88,7 @@ impl<'a, 'tcx: 'a> ExpirationTools<'tcx> {
     }
 
     /// Produces the magic wand that expires the given place.
-    fn magic_wand(&self, place: &'a places::Place<'tcx>) -> Option<&MagicWand<'tcx>> {
+    pub fn magic_wand(&self, place: &'a places::Place<'tcx>) -> Option<&MagicWand<'tcx>> {
         self.into_iter()
             .flat_map(|et| et.magic_wands())
             .filter(|mw| mw.expired() == place)
@@ -121,27 +121,27 @@ impl<'tcx> ExpirationTool<'tcx> {
 impl<'tcx> MagicWand<'tcx> {
     /// Returns the reference that is expired by this magic wand. If there is more than one such
     /// reference, it panics.
-    fn expired(&self) -> &places::Place<'tcx> {
+    pub fn expired(&self) -> &places::Place<'tcx> {
         assert_eq!(self.expired.len(), 1);
         self.expired.iter().next().unwrap()
     }
 
     /// Creates an iterator over all unblocked references that is ordered deterministically. This
     /// is important during the encoding, where the order of conjuncts in magic wands matters.
-    fn unblocked(&self) -> impl Iterator<Item=&places::Place<'tcx>> {
+    pub fn unblocked(&self) -> impl Iterator<Item=&places::Place<'tcx>> {
         self.unblocked.iter().sorted()
     }
 
     /// Creates an iterator over all pledges that is ordered deterministically. This is important
     /// during the encoding, where the order of conjuncts in magic wands matters.
-    fn pledges(&self) -> impl Iterator<Item=&typed::Assertion<'tcx>> {
+    pub fn pledges(&self) -> impl Iterator<Item=&typed::Assertion<'tcx>> {
         // TODO: This is not determinisitc yet.
         self.pledges.iter()
     }
 
     /// Creates an iterator over all expiration tools that is ordered deterministically. This is
     /// important during the encoding, where the order of conjuncts in magic wands matters.
-    fn expiration_tools(&self) -> impl Iterator<Item=&ExpirationTool<'tcx>> {
+    pub fn expiration_tools(&self) -> impl Iterator<Item=&ExpirationTool<'tcx>> {
         self.expiration_tools.into_iter().sorted_by_key(|et| et.blocking.iter().min())
     }
 }
