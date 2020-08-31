@@ -1,56 +1,56 @@
 Verification of 10 items...
 error: [Prusti: invalid specification] cannot nest a before_expiry or after_unblocked environment inside another before_expiry or after_unblocked environment.
- --> $DIR/pledges-callees-fail.rs:8:26
+ --> $DIR/pledges-callees-fail.rs:5:26
   |
-8 | #[pledge(after_unblocked(after_unblocked(p.x)) == before_expiry(*result))]
+5 | #[pledge(after_unblocked(after_unblocked(p.x)) == before_expiry(*result))]
   |                          ^^^^^^^^^^^^^^^^^^^^
 
 error: [Prusti: invalid specification] cannot nest a before_expiry or after_unblocked environment inside another before_expiry or after_unblocked environment.
-  --> $DIR/pledges-callees-fail.rs:13:26
+  --> $DIR/pledges-callees-fail.rs:10:26
    |
-13 | #[pledge(after_unblocked(before_expiry(*result)) == before_expiry(*result))]
+10 | #[pledge(after_unblocked(before_expiry(*result)) == before_expiry(*result))]
    |                          ^^^^^^^^^^^^^^^^^^^^^^
 
 error: [Prusti: invalid specification] cannot nest a before_expiry or after_unblocked environment inside another before_expiry or after_unblocked environment.
-  --> $DIR/pledges-callees-fail.rs:18:48
+  --> $DIR/pledges-callees-fail.rs:15:48
    |
-18 | #[pledge(after_unblocked(p.x) == before_expiry(after_unblocked(p.x)))]
+15 | #[pledge(after_unblocked(p.x) == before_expiry(after_unblocked(p.x)))]
    |                                                ^^^^^^^^^^^^^^^^^^^^
 
 error: [Prusti: invalid specification] cannot nest a before_expiry or after_unblocked environment inside another before_expiry or after_unblocked environment.
-  --> $DIR/pledges-callees-fail.rs:23:48
+  --> $DIR/pledges-callees-fail.rs:20:48
    |
-23 | #[pledge(after_unblocked(p.x) == before_expiry(before_expiry(*result)))]
+20 | #[pledge(after_unblocked(p.x) == before_expiry(before_expiry(*result)))]
    |                                                ^^^^^^^^^^^^^^^^^^^^^^
 
 error: [Prusti: invalid specification] the after_unblocked environment cannot contain output references.
-  --> $DIR/pledges-callees-fail.rs:28:27
+  --> $DIR/pledges-callees-fail.rs:25:27
    |
-28 | #[pledge(after_unblocked(*result) == before_expiry(*result))]
+25 | #[pledge(after_unblocked(*result) == before_expiry(*result))]
    |                           ^^^^^^
 
 error: [Prusti: invalid specification] the before_expiry environment cannot contain input references.
-  --> $DIR/pledges-callees-fail.rs:33:48
+  --> $DIR/pledges-callees-fail.rs:30:48
    |
-33 | #[pledge(after_unblocked(p.x) == before_expiry(p.x))]
+30 | #[pledge(after_unblocked(p.x) == before_expiry(p.x))]
    |                                                ^
 
 error: [Prusti: invalid specification] this before_expiry environment has dependencies on multiple inputs or outputs.
-  --> $DIR/pledges-callees-fail.rs:46:49
+  --> $DIR/pledges-callees-fail.rs:43:49
    |
-46 | #[pledge(after_unblocked(p.x) == before_expiry(*result.0 + *result.1))]
+43 | #[pledge(after_unblocked(p.x) == before_expiry(*result.0 + *result.1))]
    |                                                 ^^^^^^^^    ^^^^^^^^
 
 error: [Prusti: invalid specification] this after_unblocked environment must contain at least one input or output reference.
-  --> $DIR/pledges-callees-fail.rs:51:10
+  --> $DIR/pledges-callees-fail.rs:48:10
    |
-51 | #[pledge(after_unblocked(0) == before_expiry(*result))]
+48 | #[pledge(after_unblocked(0) == before_expiry(*result))]
    |          ^^^^^^^^^^^^^^^^^^
 
 error: [Prusti: invalid specification] this before_expiry environment must contain at least one input or output reference.
-  --> $DIR/pledges-callees-fail.rs:56:34
+  --> $DIR/pledges-callees-fail.rs:53:34
    |
-56 | #[pledge(after_unblocked(p.x) == before_expiry(0))]
+53 | #[pledge(after_unblocked(p.x) == before_expiry(0))]
    |                                  ^^^^^^^^^^^^^^^^
 
 Verification failed
