@@ -169,8 +169,7 @@ impl<'v, 'tcx> DependencyIdentifier<'v, 'tcx> {
     ) -> Result<HashSet<PledgeDependency<'tcx>>> {
         Ok(match assertion.kind.as_ref() {
             AssertionKind::Expr(expression) =>
-                self.analyze_expression(
-                    &extract_expression(self.tcx.hir(), expression), None)?,
+                self.analyze_expression(&extract_expression(self.tcx.hir(), expression), None)?,
             AssertionKind::And(assertions) =>
                 assertions.iter()
                     .map(|assertion| self.analyze_assertion(assertion))
@@ -214,20 +213,18 @@ impl<'v, 'tcx> DependencyIdentifier<'v, 'tcx> {
                 let dependencies = arguments.iter()
                     .map(|argument| self.analyze_expression(argument, new_context))
                     .collect::<Result<Vec<_>>>()?.into_iter().flatten().collect::<HashSet<_>>();
-                if let Some(new_context) = new_context {
-                    if context == None {
-                        // We just entered a before_expiry or after_unblocked context, so we
-                        // check if it contains the right number of dependencies (i.e., exactly
-                        // one).
-                        if dependencies.is_empty() {
-                            // A before_expiry or after_unblocked context cannot contain no
-                            // dependencies.
-                            Err(err_ctxt_no_dependencies(new_context, expression))
-                        } else if dependencies.len() > 1 {
-                            // A before_expiry or after_unblocked context cannot contain multiple
-                            // dependencies.
-                            Err(err_ctxt_multiple_dependencies(new_context, &dependencies))
-                        } else { Ok(dependencies) }
+                if let (Some(new_context), None) = (new_context, context) {
+                    // We just entered a before_expiry or after_unblocked context, so we
+                    // check if it contains the right number of dependencies (i.e., exactly
+                    // one).
+                    if dependencies.is_empty() {
+                        // A before_expiry or after_unblocked context cannot contain no
+                        // dependencies.
+                        Err(err_ctxt_no_dependencies(new_context, expression))
+                    } else if dependencies.len() > 1 {
+                        // A before_expiry or after_unblocked context cannot contain multiple
+                        // dependencies.
+                        Err(err_ctxt_multiple_dependencies(new_context, &dependencies))
                     } else { Ok(dependencies) }
                 } else { Ok(dependencies) }?
             }
@@ -449,9 +446,8 @@ fn err_after_unblocked_contains_outputs(expression: &rustc_hir::Expr) -> Encodin
 }
 
 fn err_ctxt_no_dependencies(context: Context, expression: &rustc_hir::Expr) -> EncodingError {
-    let message = format!(
-        "this {} environment must contain at least one input or output reference.",
-        context);
+    let message = format!("this {} environment must contain at least one input or output \
+        reference.", context);
     EncodingError::incorrect(message, expression.span)
 }
 
@@ -460,8 +456,7 @@ fn err_ctxt_multiple_dependencies(
     dependencies: &HashSet<PledgeDependency>
 ) -> EncodingError {
     let spans = dependencies.iter().map(|pd| pd.span).collect::<Vec<_>>();
-    let message = format!(
-        "this {} environment has dependencies on multiple inputs or outputs.",
+    let message = format!("this {} environment has dependencies on multiple inputs or outputs.",
         context);
     EncodingError::incorrect(message, spans)
 }
