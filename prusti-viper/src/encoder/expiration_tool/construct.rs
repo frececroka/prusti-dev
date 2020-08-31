@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::collections::HashSet;
 use std::iter;
 
@@ -14,57 +13,65 @@ use crate::encoder::reborrow_signature::ReborrowSignature;
 use crate::utils::namespace::Namespace;
 
 use super::ExpirationTool;
+use super::ExpirationToolCarrier;
 use super::ExpirationTools;
-use super::MagicWand;
 use super::pledges::identify_dependencies;
 use super::pledges::PledgeDependenciesSatisfied;
 use super::pledges::PledgeWithDependencies;
 use super::split_reborrows::split_reborrows;
 
-impl<'tcx> ExpirationTools<'tcx> {
+impl<'c, 'tcx> ExpirationTools<'c, 'tcx> {
     pub fn construct(
+        carrier: &'c mut ExpirationToolCarrier<'c, 'tcx>,
         tcx: ty::TyCtxt<'tcx>,
         mir: &mir::Body<'tcx>,
         reborrows: &ReborrowSignature<places::Place<'tcx>>,
         pledges: Vec<typed::Assertion<'tcx>>
-    ) -> Result<Self> {
-        let place_mapping = reborrows.blocking.iter().cloned()
+    ) -> Result<&'c Self> {
+        carrier.place_mapping = reborrows.blocking.iter().cloned()
             .enumerate().map(|(i, p)| (p, i))
             .collect();
+
+        let carrier = &*carrier;
+
+        let pledges = pledges.into_iter()
+            .map(|pledge| carrier.add_pledge(pledge))
+            .collect::<Vec<_>>();
 
         let namespace = Namespace::new("et");
 
         let pledges = pledges.into_iter()
             .map(|pledge| {
-                let dependants = identify_dependencies(tcx, mir, &reborrows, &pledge)?;
+                let dependants = identify_dependencies(tcx, mir, &reborrows, pledge)?;
                 Ok((pledge, dependants))
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(Self::construct1(namespace, reborrows, &pledges, &place_mapping))
+        Ok(Self::construct1(carrier, namespace, reborrows, &pledges))
     }
 
     fn construct1(
+        carrier: &'c ExpirationToolCarrier<'c, 'tcx>,
         mut namespace: Namespace,
         reborrows: &ReborrowSignature<places::Place<'tcx>>,
-        pledges: &[PledgeWithDependencies<'tcx>],
-        place_mapping: &HashMap<places::Place<'tcx>, usize>
-    ) -> Self {
-        split_reborrows(reborrows, pledges.to_vec()).into_iter()
+        pledges: &[PledgeWithDependencies<'c, 'tcx>]
+    ) -> &'c Self {
+        let expiration_tools = split_reborrows(reborrows, pledges.to_vec()).into_iter()
             .sorted_by_key(|(reborrows, _)| reborrows.blocking.iter().min().cloned())
             .map(|(reborrows, pledges)| ExpirationTool::construct2(
-                namespace.next_child(), &reborrows, &pledges, place_mapping))
-            .collect::<Vec<_>>().into()
+                carrier, namespace.next_child(), &reborrows, &pledges))
+            .collect::<Vec<_>>().into();
+        carrier.add_expiration_tools(expiration_tools)
     }
 }
 
-impl<'tcx> ExpirationTool<'tcx> {
+impl<'c, 'tcx> ExpirationTool<'c, 'tcx> {
     fn construct2(
+        carrier: &'c ExpirationToolCarrier<'c, 'tcx>,
         mut namespace: Namespace,
         reborrows: &ReborrowSignature<places::Place<'tcx>>,
-        pledges: &[PledgeWithDependencies<'tcx>],
-        place_mapping: &HashMap<places::Place<'tcx>, usize>
-    ) -> Self {
+        pledges: &[PledgeWithDependencies<'c, 'tcx>]
+    ) -> &'c Self {
         let blocking = reborrows.blocking.clone();
         let blocked = reborrows.blocked.clone();
 
@@ -90,21 +97,16 @@ impl<'tcx> ExpirationTool<'tcx> {
             // will be optimized to provide a separate expiration tool for every connected
             // component of the reborrowing graph.
             let expiration_tools = ExpirationTools::construct1(
-                namespace.next_child(), &reborrows, pledges, place_mapping);
+                carrier, namespace.next_child(), &reborrows, pledges);
 
-            let magic_wand = MagicWand {
+            magic_wands.push(carrier.add_magic_wand(
                 namespace,
                 expired, unblocked,
-                pledges: ripe_pledges,
+                ripe_pledges,
                 expiration_tools
-            };
-            magic_wands.push(magic_wand);
+            ));
         }
 
-        // TODO: Have a single "mothership" which stores the place mapping and in every
-        //  expiration tool only store a reference to it.
-        let place_mapping = place_mapping.clone();
-
-        ExpirationTool { place_mapping, blocking, blocked, magic_wands }
+        carrier.add_expiration_tool(blocking, blocked, magic_wands)
     }
 }

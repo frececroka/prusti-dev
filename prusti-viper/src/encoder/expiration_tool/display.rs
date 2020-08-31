@@ -2,6 +2,7 @@ use std::fmt;
 
 use super::Context;
 use super::ExpirationTool;
+use super::ExpirationToolCarrier;
 use super::ExpirationTools;
 
 impl fmt::Display for Context {
@@ -13,7 +14,13 @@ impl fmt::Display for Context {
     }
 }
 
-impl<'tcx> fmt::Display for ExpirationTools<'tcx> {
+impl<'c, 'tcx> fmt::Debug for ExpirationToolCarrier<'c, 'tcx> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "<carrier>")
+    }
+}
+
+impl<'c, 'tcx> fmt::Display for ExpirationTools<'c, 'tcx> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for expiration_tool in self {
             write!(f, "{}", expiration_tool)?;
@@ -22,7 +29,7 @@ impl<'tcx> fmt::Display for ExpirationTools<'tcx> {
     }
 }
 
-impl<'tcx> fmt::Display for ExpirationTool<'tcx> {
+impl<'c, 'tcx> fmt::Display for ExpirationTool<'c, 'tcx> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "expiration_tool:")?;
         let blocking = (&self.blocking).join_to_string(", ", |b| format!("{:?}", b));

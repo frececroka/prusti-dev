@@ -9,17 +9,17 @@ use super::ExpirationToolEncoder;
 use super::super::ExpirationTool;
 use super::super::MagicWand;
 
-impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
+impl<'c, 'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
     pub(super) fn encode_expiration_tool_branches<B>(&mut self,
-        expiration_tool: &ExpirationTool<'tcx>,
+        expiration_tool: &ExpirationTool<'c, 'tcx>,
         mut encode_branch: impl FnMut(
-            &mut Self, vir::Expr, &MagicWand<'tcx>
+            &mut Self, vir::Expr, &MagicWand<'c, 'tcx>
         ) -> Result<(B, Vec<Binding>)>
     ) -> Result<(Vec<B>, Vec<Binding>)> {
         let blocking_representative = expiration_tool.blocking.len();
         let branches = expiration_tool.magic_wands()
             .map(|magic_wand| {
-                let expired_place = expiration_tool.place_mapping[magic_wand.expired()];
+                let expired_place = expiration_tool.carrier.place_mapping[magic_wand.expired()];
                 let antecedent = vir::Expr::domain_func_app(
                     expires_first_domain::EXPIRES_FIRST.clone(),
                     vec![

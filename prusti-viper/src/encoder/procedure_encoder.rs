@@ -15,7 +15,7 @@ use crate::encoder::loop_encoder::{LoopEncoder, LoopEncoderError};
 use crate::encoder::mir_encoder::{MirEncoder, FakeMirEncoder, PlaceEncoder};
 use crate::encoder::mir_encoder::{POSTCONDITION_LABEL, PRECONDITION_LABEL};
 use crate::encoder::mir_successor::MirSuccessor;
-use crate::encoder::expiration_tool::ExpirationTools;
+use crate::encoder::expiration_tool::{ExpirationTools, ExpirationToolCarrier};
 use crate::encoder::optimizer;
 use crate::encoder::places::{Local, LocalVariableManager, Place};
 use crate::encoder::Encoder;
@@ -1466,8 +1466,9 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
             .collect::<HashSet<_>>();
 
         // We construct the initial expiration tools.
+        let mut carrier = ExpirationToolCarrier::default();
         let expiration_tools = ExpirationTools::construct(
-            tcx, &mir.borrow(), reborrow_signature, pledges
+            &mut carrier, tcx, &mir.borrow(), reborrow_signature, pledges
         ).unwrap();
 
         // And now we drill down into the expiration tools by expiring the places that have already
@@ -2865,8 +2866,9 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         let def_id = ty::WithOptConstParam::unknown(contract.def_id.expect_local());
         let (mir, _) = self.procedure.get_tcx().mir_validated(def_id);
 
+        let mut carrier = ExpirationToolCarrier::default();
         let expiration_tools = ExpirationTools::construct(
-            self.procedure.get_tcx(), &mir.borrow(), borrow_infos, pledges)?;
+            &mut carrier, self.procedure.get_tcx(), &mir.borrow(), borrow_infos, pledges)?;
         let expiration_tools = self.encode_expiration_tool_as_expression(
             &expiration_tools, contract, location, pre_label, post_label);
         Ok(Some(expiration_tools))
@@ -3147,8 +3149,9 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
             .collect();
 
         let reborrow_signature = &contract.borrow_infos;
+        let mut carrier = ExpirationToolCarrier::default();
         let expiration_tools = ExpirationTools::construct(
-            self.procedure.get_tcx(), self.mir, reborrow_signature, pledges)?;
+            &mut carrier, self.procedure.get_tcx(), self.mir, reborrow_signature, pledges)?;
 
         self.encode_expiration_tool_as_package(
             &expiration_tools, &contract, location, pre_label, post_label)

@@ -19,8 +19,8 @@ use super::super::MagicWand;
 use super::utils::extract_before_expiry_after_unblocked;
 
 impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
-    pub fn encode_expiration_tool_as_expression(&mut self,
-        expiration_tools: &ExpirationTools<'tcx>,
+    pub fn encode_expiration_tool_as_expression<'c>(&mut self,
+        expiration_tools: &ExpirationTools<'c, 'tcx>,
         contract: &ProcedureContract<'tcx>,
         call_location: Option<mir::Location>,
         pre_label: &str,
@@ -40,8 +40,8 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
         encoded_expiration_tools
     }
 
-    pub fn encode_magic_wand_as_expression(&mut self,
-        magic_wand: &MagicWand<'tcx>,
+    pub fn encode_magic_wand_as_expression<'c>(&mut self,
+        magic_wand: &MagicWand<'c, 'tcx>,
         contract: &ProcedureContract<'tcx>,
         call_location: Option<mir::Location>,
         pre_label: &str,
@@ -53,10 +53,10 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
     }
 }
 
-impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
+impl<'c, 'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
     /// This encodes the given expiration tool as a Viper expression.
     pub(super) fn expiration_tool_as_expression(&mut self,
-        expiration_tool: &ExpirationTool<'tcx>
+        expiration_tool: &ExpirationTool<'c, 'tcx>
     ) -> (vir::Expr, Vec<Binding>) {
         let (branches, bindings) = self.encode_expiration_tool_branches(
             expiration_tool,
@@ -73,7 +73,7 @@ impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
 
     /// This encodes the given magic wand as a Viper expression.
     pub(super) fn magic_wand_as_expression(&mut self,
-        magic_wand: &MagicWand<'tcx>
+        magic_wand: &MagicWand<'c, 'tcx>
     ) -> (vir::Expr, Vec<Binding>) {
         let expired_borrow: Option<Borrow> = if self.call_location.is_some() {
             let expired_place = magic_wand.expired().to_mir_place().truncate(self.tcx(), 1);

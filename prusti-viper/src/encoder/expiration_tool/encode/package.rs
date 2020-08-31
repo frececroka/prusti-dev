@@ -20,8 +20,8 @@ use super::super::ExpirationTools;
 use super::super::MagicWand;
 
 impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
-    pub fn encode_expiration_tool_as_package(&mut self,
-        expiration_tools: &ExpirationTools<'tcx>,
+    pub fn encode_expiration_tool_as_package<'c>(&mut self,
+        expiration_tools: &ExpirationTools<'c, 'tcx>,
         contract: &ProcedureContract<'tcx>,
         location: mir::Location,
         pre_label: &str,
@@ -63,11 +63,11 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
     }
 }
 
-impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
+impl<'c, 'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
     /// This encodes the given expiration tool as a sequence of Viper statements that package
     /// all the magic wands it contains directly.
     pub(super) fn expiration_tool_as_package(&mut self,
-        expiration_tool: &ExpirationTool<'tcx>
+        expiration_tool: &ExpirationTool<'c, 'tcx>
     ) -> Result<(Vec<vir::Stmt>, Vec<Binding>)> {
         self.encode_expiration_tool_branches(
             expiration_tool,
@@ -82,7 +82,7 @@ impl<'a, 'p, 'v: 'p, 'tcx: 'v> ExpirationToolEncoder<'a, 'p, 'v, 'tcx> {
 
     /// This encodes the given magic wand as a Viper package statement.
     fn magic_wand_as_package(&mut self,
-        magic_wand: &MagicWand<'tcx>
+        magic_wand: &MagicWand<'c, 'tcx>
     ) -> Result<(vir::Stmt, Vec<Binding>)> {
         let (magic_wand_expr, magic_wand_bindings) = self.magic_wand_as_expression(magic_wand);
         let (lhs, rhs) = match magic_wand_expr {

@@ -21,6 +21,7 @@ pretty_assertions = "0.5.1"
 regex = "1.0.5"
 serde = "1.0"
 lazy_static = "1.0"
+typed-arena = "*"
 
 [dev-dependencies]
 env_logger = "0.5.13"

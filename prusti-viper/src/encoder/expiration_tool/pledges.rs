@@ -24,8 +24,8 @@ use crate::encoder::reborrow_signature::ReborrowSignature;
 
 use super::Context;
 
-pub(super) type PledgeWithDependencies<'tcx> = (
-    typed::Assertion<'tcx>,
+pub(super) type PledgeWithDependencies<'c, 'tcx> = (
+    &'c typed::Assertion<'tcx>,
     HashSet<PledgeDependency<'tcx>>
 );
 
