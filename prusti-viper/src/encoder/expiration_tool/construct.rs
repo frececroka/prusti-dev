@@ -93,9 +93,7 @@ impl<'c, 'tcx> ExpirationTool<'c, 'tcx> {
                 .map(|(assertion, _)| assertion)
                 .cloned().collect();
 
-            // The nested expiration tools. Right now there is just a single one, but soon this
-            // will be optimized to provide a separate expiration tool for every connected
-            // component of the reborrowing graph.
+            // The nested expiration tools.
             let expiration_tools = ExpirationTools::construct1(
                 carrier, namespace.next_child(), &reborrows, pledges);
 
