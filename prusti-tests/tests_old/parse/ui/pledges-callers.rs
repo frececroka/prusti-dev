@@ -39,4 +39,16 @@ fn f2_caller() {
     *py += 2;
 }
 
+fn f3<'p, 'q>(p: &'p mut Point, q: &'q mut Point) -> (&'p mut u32, &'q mut u32) {
+    (&mut p.x, &mut q.x)
+}
+
+// fn f3_caller() {
+//     let mut p = Point { x: 10, y: 11 };
+//     let mut q = Point { x: 20, y: 21 };
+//     let (px, qx) = f3(&mut p, &mut q);
+//     *px += 1;
+//     *qx += 2;
+// }
+
 fn main() {}
