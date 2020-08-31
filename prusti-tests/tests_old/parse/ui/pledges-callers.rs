@@ -50,11 +50,5 @@ fn f3_caller() {
     *px += 1;
     *qx += 2;
 }
-//     let mut p = Point { x: 10, y: 11 };
-//     let mut q = Point { x: 20, y: 21 };
-//     let (px, qx) = f3(&mut p, &mut q);
-//     *px += 1;
-//     *qx += 2;
-// }
 
 fn main() {}
