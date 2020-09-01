@@ -20,6 +20,17 @@ use super::pledges::PledgeDependenciesSatisfied;
 use super::pledges::PledgeWithDependencies;
 use super::split_reborrows::split_reborrows;
 
+impl<'c, 'tcx> ExpirationToolCarrier<'c, 'tcx> {
+    pub fn construct(&'c mut self,
+        tcx: ty::TyCtxt<'tcx>,
+        mir: &mir::Body<'tcx>,
+        reborrows: &ReborrowSignature<places::Place<'tcx>>,
+        pledges: Vec<typed::Assertion<'tcx>>
+    ) -> Result<&'c ExpirationTools<'c, 'tcx>> {
+        ExpirationTools::construct(self, tcx, mir, reborrows, pledges)
+    }
+}
+
 impl<'c, 'tcx> ExpirationTools<'c, 'tcx> {
     pub fn construct(
         carrier: &'c mut ExpirationToolCarrier<'c, 'tcx>,
