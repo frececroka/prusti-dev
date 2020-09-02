@@ -57,7 +57,7 @@ fn f4<'p, 'q>(p: &'p mut Point, q: &'q mut Point) -> (&'p mut u32, &'q mut u32) 
     (&mut p.x, &mut q.x)
 }
 
-fn f4_caller() {
+fn f4_caller_0() {
     let mut p = Point { x: 10, y: 20 };
     let mut q = Point { x: 30, y: 40 };
     let (px, _) = f4(&mut p, &mut q);
@@ -88,6 +88,34 @@ fn f4_caller() {
     //  current value instead. The problem is that because _1.0 was moved into _2 earlier, we
     //  actually have to use the current value of _2, not the current value of _1.0.
     // assert!(p.x == 11);
+}
+
+fn f4_caller_1() {
+    let mut p = Point { x: 10, y: 20 };
+    let mut q = Point { x: 30, y: 40 };
+    let (px, _) = f4(&mut p, &mut q);
+    *px = 1;
+    assert!(p.x == 1);
+}
+
+fn f5<'p, 'q>(p: &'p mut Point, q: &'q mut Point) -> (&'p mut u32, &'q mut u32) {
+    (&mut p.x, &mut q.x)
+}
+
+fn f5_caller() {
+    let mut p = Point { x: 10, y: 20 };
+    let mut q = Point { x: 30, y: 40 };
+    f5(&mut p, &mut q);
+}
+
+fn f6<'p, 'q: 'p>(p: &'p mut Point, q: &'q mut Point) -> (&'p mut u32, &'q mut u32) {
+    (&mut p.x, &mut q.x)
+}
+
+fn f6_caller() {
+    let mut p = Point { x: 10, y: 20 };
+    let mut q = Point { x: 30, y: 40 };
+    f6(&mut p, &mut q);
 }
 
 fn main() {}
