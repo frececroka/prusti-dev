@@ -27,41 +27,24 @@ impl<'c, 'tcx> ExpirationToolCarrier<'c, 'tcx> {
         reborrows: &ReborrowSignature<places::Place<'tcx>>,
         pledges: Vec<typed::Assertion<'tcx>>
     ) -> Result<&'c ExpirationTools<'c, 'tcx>> {
-        ExpirationTools::construct(self, tcx, mir, reborrows, pledges)
-    }
-}
-
-impl<'c, 'tcx> ExpirationTools<'c, 'tcx> {
-    pub fn construct(
-        carrier: &'c mut ExpirationToolCarrier<'c, 'tcx>,
-        tcx: ty::TyCtxt<'tcx>,
-        mir: &mir::Body<'tcx>,
-        reborrows: &ReborrowSignature<places::Place<'tcx>>,
-        pledges: Vec<typed::Assertion<'tcx>>
-    ) -> Result<&'c Self> {
-        carrier.place_mapping = reborrows.blocking.iter().cloned()
+        self.place_mapping = reborrows.blocking.iter().cloned()
             .enumerate().map(|(i, p)| (p, i))
             .collect();
-
-        let carrier = &*carrier;
-
-        let pledges = pledges.into_iter()
-            .map(|pledge| carrier.add_pledge(pledge))
-            .collect::<Vec<_>>();
-
-        let namespace = Namespace::new("et");
-
+        let shared_self = &*self;
         let pledges = pledges.into_iter()
             .map(|pledge| {
+                let pledge = shared_self.add_pledge(pledge);
                 let dependants = identify_dependencies(tcx, mir, &reborrows, pledge)?;
                 Ok((pledge, dependants))
             })
             .collect::<Result<Vec<_>>>()?;
-
-        Ok(Self::construct1(carrier, namespace, reborrows, &pledges))
+        let namespace = Namespace::new("et");
+        Ok(ExpirationTools::construct(self, namespace, reborrows, &pledges))
     }
+}
 
-    fn construct1(
+impl<'c, 'tcx> ExpirationTools<'c, 'tcx> {
+    fn construct(
         carrier: &'c ExpirationToolCarrier<'c, 'tcx>,
         mut namespace: Namespace,
         reborrows: &ReborrowSignature<places::Place<'tcx>>,
@@ -69,7 +52,7 @@ impl<'c, 'tcx> ExpirationTools<'c, 'tcx> {
     ) -> &'c Self {
         let expiration_tools = split_reborrows(reborrows, pledges.to_vec()).into_iter()
             .sorted_by_key(|(reborrows, _)| reborrows.blocking.iter().min().cloned())
-            .map(|(reborrows, pledges)| ExpirationTool::construct2(
+            .map(|(reborrows, pledges)| ExpirationTool::construct(
                 carrier, namespace.next_child(), &reborrows, &pledges))
             .collect::<Vec<_>>().into();
         carrier.add_expiration_tools(expiration_tools)
@@ -77,7 +60,7 @@ impl<'c, 'tcx> ExpirationTools<'c, 'tcx> {
 }
 
 impl<'c, 'tcx> ExpirationTool<'c, 'tcx> {
-    fn construct2(
+    fn construct(
         carrier: &'c ExpirationToolCarrier<'c, 'tcx>,
         mut namespace: Namespace,
         reborrows: &ReborrowSignature<places::Place<'tcx>>,
@@ -105,7 +88,7 @@ impl<'c, 'tcx> ExpirationTool<'c, 'tcx> {
                 .cloned().collect();
 
             // The nested expiration tools.
-            let expiration_tools = ExpirationTools::construct1(
+            let expiration_tools = ExpirationTools::construct(
                 carrier, namespace.next_child(), &reborrows, pledges);
 
             magic_wands.push(carrier.add_magic_wand(
