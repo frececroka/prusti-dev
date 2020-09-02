@@ -15,6 +15,7 @@ use crate::utils::namespace::Namespace;
 use super::ExpirationTool;
 use super::ExpirationToolCarrier;
 use super::ExpirationTools;
+use super::MagicWand;
 use super::pledges::identify_dependencies;
 use super::pledges::PledgeDependenciesSatisfied;
 use super::pledges::PledgeWithDependencies;
@@ -68,37 +69,46 @@ impl<'c, 'tcx> ExpirationTool<'c, 'tcx> {
     ) -> &'c Self {
         let blocking = reborrows.blocking.clone();
         let blocked = reborrows.blocked.clone();
-
-        let mut magic_wands = Vec::new();
-
-        for expired in reborrows.blocking().cloned() {
-            let mut namespace = namespace.next_child();
-
-            // Expire the blocking reference and obtain the updated reborrow information.
-            let (reborrows, unblocked) = reborrows.expire_output(&expired);
-
-            // The places that expired. Right now, it's just a single one at a time.
-            let expired = iter::once(expired).collect::<HashSet<_>>();
-
-            // The assertions that are made available by this magic wand.
-            let ripe_pledges = pledges.iter()
-                .filter(|(_, dependencies)| dependencies.are_newly_satisfied(
-                    &blocking, &blocked, &expired, &unblocked))
-                .map(|(pledge, _)| pledge)
-                .cloned().collect();
-
-            // The nested expiration tools.
-            let expiration_tools = ExpirationTools::construct(
-                carrier, &reborrows, pledges, namespace.next_child());
-
-            magic_wands.push(carrier.add_magic_wand(
-                namespace,
-                expired, unblocked,
-                ripe_pledges,
-                expiration_tools
-            ));
-        }
-
+        let magic_wands = reborrows.blocking().cloned().map(|expired|
+            MagicWand::construct(carrier, reborrows, pledges, namespace.next_child(), expired)
+        ).collect();
         carrier.add_expiration_tool(blocking, blocked, magic_wands)
+    }
+}
+
+impl<'c, 'tcx> MagicWand<'c, 'tcx> {
+    fn construct(
+        carrier: &'c ExpirationToolCarrier<'c, 'tcx>,
+        reborrows: &ReborrowSignature<places::Place<'tcx>>,
+        pledges: &[PledgeWithDependencies<'c, 'tcx>],
+        mut namespace: Namespace,
+        expired: places::Place<'tcx>,
+    ) -> &'c Self {
+        let blocking = &reborrows.blocking;
+        let blocked = &reborrows.blocked;
+
+        // Expire the blocking reference and obtain the updated reborrow information.
+        let (reborrows, unblocked) = reborrows.expire_output(&expired);
+
+        // The places that expired. Right now, it's just a single one at a time.
+        let expired = iter::once(expired).collect::<HashSet<_>>();
+
+        // The assertions that are made available by this magic wand.
+        let ripe_pledges = pledges.iter()
+            .filter(|(_, dependencies)| dependencies.are_newly_satisfied(
+                &blocking, &blocked, &expired, &unblocked))
+            .map(|(pledge, _)| pledge)
+            .cloned().collect();
+
+        // The nested expiration tools.
+        let expiration_tools = ExpirationTools::construct(
+            carrier, &reborrows, pledges, namespace.next_child());
+
+        carrier.add_magic_wand(
+            namespace,
+            expired, unblocked,
+            ripe_pledges,
+            expiration_tools
+        )
     }
 }
