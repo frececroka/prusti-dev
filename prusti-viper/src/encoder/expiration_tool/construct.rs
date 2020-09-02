@@ -39,21 +39,21 @@ impl<'c, 'tcx> ExpirationToolCarrier<'c, 'tcx> {
             })
             .collect::<Result<Vec<_>>>()?;
         let namespace = Namespace::new("et");
-        Ok(ExpirationTools::construct(self, namespace, reborrows, &pledges))
+        Ok(ExpirationTools::construct(self, reborrows, &pledges, namespace))
     }
 }
 
 impl<'c, 'tcx> ExpirationTools<'c, 'tcx> {
     fn construct(
         carrier: &'c ExpirationToolCarrier<'c, 'tcx>,
-        mut namespace: Namespace,
         reborrows: &ReborrowSignature<places::Place<'tcx>>,
-        pledges: &[PledgeWithDependencies<'c, 'tcx>]
+        pledges: &[PledgeWithDependencies<'c, 'tcx>],
+        mut namespace: Namespace,
     ) -> &'c Self {
         let expiration_tools = split_reborrows(reborrows, pledges.to_vec()).into_iter()
             .sorted_by_key(|(reborrows, _)| reborrows.blocking.iter().min().cloned())
             .map(|(reborrows, pledges)| ExpirationTool::construct(
-                carrier, namespace.next_child(), &reborrows, &pledges))
+                carrier, &reborrows, &pledges, namespace.next_child()))
             .collect::<Vec<_>>().into();
         carrier.add_expiration_tools(expiration_tools)
     }
@@ -62,9 +62,9 @@ impl<'c, 'tcx> ExpirationTools<'c, 'tcx> {
 impl<'c, 'tcx> ExpirationTool<'c, 'tcx> {
     fn construct(
         carrier: &'c ExpirationToolCarrier<'c, 'tcx>,
-        mut namespace: Namespace,
         reborrows: &ReborrowSignature<places::Place<'tcx>>,
-        pledges: &[PledgeWithDependencies<'c, 'tcx>]
+        pledges: &[PledgeWithDependencies<'c, 'tcx>],
+        mut namespace: Namespace,
     ) -> &'c Self {
         let blocking = reborrows.blocking.clone();
         let blocked = reborrows.blocked.clone();
@@ -89,7 +89,7 @@ impl<'c, 'tcx> ExpirationTool<'c, 'tcx> {
 
             // The nested expiration tools.
             let expiration_tools = ExpirationTools::construct(
-                carrier, namespace.next_child(), &reborrows, pledges);
+                carrier, &reborrows, pledges, namespace.next_child());
 
             magic_wands.push(carrier.add_magic_wand(
                 namespace,
