@@ -1441,33 +1441,31 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
 
         let pledges = contract.pledges().iter().map(|pledge| pledge.rhs.clone()).collect();
 
+        let (active_loans, _) = self.polonius_info().get_all_active_loans(location);
+
+        fn to_substituted_place(place: mir::Place) -> Place {
+            Place::from_place(mir::RETURN_PLACE, place)
+        }
+
         let expiring_place = self.polonius_info().get_loan_call_place(&expiring_loan).unwrap();
-        let expiring_place = expiring_place.deref(tcx);
-        let expiring_place = Place::from_place(mir::RETURN_PLACE, expiring_place.clone());
-
-        let (active_loans, zombie_loans) =
-            self.polonius_info().get_all_active_loans(location);
-
-        let (expiring_loans, expiring_zombie_loans) =
-            self.polonius_info().get_all_loans_dying_at(location);
-
-        let expiring_places = expiring_loans.iter()
-            .filter_map(|loan| self.polonius_info().get_loan_call_place(loan))
-            .map(|place| place.clone().deref(tcx))
-            .collect::<HashSet<_>>();
-
-        let original_blocking = reborrow_signature.blocking.iter()
-            .map(|place| place.to_mir_place())
-            .collect::<HashSet<_>>();
+        let expiring_place = to_substituted_place(expiring_place.deref(tcx));
 
         let still_blocking = active_loans.iter()
             .filter_map(|loan| self.polonius_info().get_loan_call_place(loan))
-            .map(|place| place.clone().deref(tcx))
+            .map(|place| to_substituted_place(place.clone().deref(tcx)))
             .collect::<HashSet<_>>();
 
-        let expired_before = original_blocking.difference(&still_blocking)
-            .map(|place| Place::from_place(mir::RETURN_PLACE, place.clone()))
+        let expired_before_1 = reborrow_signature.blocking.difference(&still_blocking)
             .collect::<HashSet<_>>();
+
+        let expired_before_2 = expired_loans.iter()
+            .filter_map(|loan| self.polonius_info().get_loan_call_place(loan))
+            .map(|place| to_substituted_place(place.clone().deref(tcx)))
+            .collect::<Vec<_>>();
+
+        let expired_before = std::iter::empty()
+            .chain(expired_before_1)
+            .chain(expired_before_2.iter());
 
         // We construct the initial expiration tools.
         let mut carrier = ExpirationToolCarrier::default();
@@ -1476,11 +1474,11 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
 
         // And now we drill down into the expiration tools by expiring the places that have already
         // expired.
-        let expiration_tools = expiration_tools.expire(expired_before.iter());
+        let expiration_tools = expiration_tools.expire(expired_before);
         let magic_wand = expiration_tools.magic_wand(&expiring_place).unwrap();
 
         let (pre_label, post_label) = self.call_labels[&call_location].clone();
-        let (encoded_magic_wand, bindings) = self.encode_magic_wand_as_expression(
+        let (encoded_magic_wand, _) = self.encode_magic_wand_as_expression(
             &magic_wand, contract, Some(call_location), &pre_label, &post_label);
 
         let encoded_magic_wand = self.replace_old_places_with_ghost_vars(None, encoded_magic_wand);
