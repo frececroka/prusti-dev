@@ -84,7 +84,7 @@ impl<'c, 'tcx> ExpirationTool<'c, 'tcx> {
             let ripe_pledges = pledges.iter()
                 .filter(|(_, dependencies)| dependencies.are_newly_satisfied(
                     &blocking, &blocked, &expired, &unblocked))
-                .map(|(assertion, _)| assertion)
+                .map(|(pledge, _)| pledge)
                 .cloned().collect();
 
             // The nested expiration tools.
