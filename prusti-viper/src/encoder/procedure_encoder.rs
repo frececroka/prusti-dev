@@ -1488,7 +1488,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
 
         let encoded_old_expired = encoded_expired.clone().old(post_label);
 
-        let transfer_perms = if node.incoming_zombies {
+        let transfer_perms = if !node.reborrowing_loans.is_empty() {
             node.reborrowing_loans.iter().map(|in_loan| {
                 let in_location = self.polonius_info().get_loan_location(&in_loan);
                 let in_label = self.get_label_after_location(in_location).to_string();
