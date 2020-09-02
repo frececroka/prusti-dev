@@ -1288,9 +1288,10 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
             "construct_vir_reborrowing_dag mir_dag={}",
             mir_dag.to_string()
         );
+        let mut expired_loans = Vec::new();
         let mut builder = vir::borrows::DAGBuilder::new();
         for node in mir_dag.iter() {
-            let node = match node.kind {
+            let vir_node = match node.kind {
                 ReborrowingKind::Assignment { loan } => self
                     .construct_vir_reborrowing_node_for_assignment(
                         &mir_dag,
@@ -1299,8 +1300,9 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
                         location,
                         end_location,
                     ),
-                ReborrowingKind::Call { loan, .. } =>
-                    self.construct_vir_reborrowing_node_for_call(loan, node, location),
+                ReborrowingKind::Call { loan: expiring_loan, .. } =>
+                    self.construct_vir_reborrowing_node_for_call(
+                        &expired_loans, expiring_loan, node, location),
                 ReborrowingKind::ArgumentMove { loan } => {
                     let loan_location = self.polonius_info().get_loan_location(&loan);
                     let guard = self.construct_location_guard(loan_location);
@@ -1318,7 +1320,8 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
                 }
                 ref x => unimplemented!("{:?}", x),
             };
-            builder.add_node(node);
+            expired_loans.push(node.loan);
+            builder.add_node(vir_node);
         }
         debug!(
             "construct_vir_reborrowing_dag mir_dag={}",
@@ -1420,6 +1423,7 @@ impl<'p, 'v: 'p, 'tcx: 'v> ProcedureEncoder<'p, 'v, 'tcx> {
     /// * `location` is the location where the loan expires.
     fn construct_vir_reborrowing_node_for_call(
         &mut self,
+        expired_loans: &[facts::Loan],
         expiring_loan: facts::Loan,
         node: &ReborrowingDAGNode,
         location: mir::Location,
