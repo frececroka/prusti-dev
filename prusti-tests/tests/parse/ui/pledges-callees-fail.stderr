@@ -1,4 +1,3 @@
-Verification of 10 items...
 error: [Prusti: invalid specification] cannot nest a before_expiry or after_unblocked environment inside another before_expiry or after_unblocked environment.
  --> $DIR/pledges-callees-fail.rs:5:26
   |
@@ -53,6 +52,5 @@ error: [Prusti: invalid specification] this before_expiry environment must conta
 53 | #[pledge(after_unblocked(p.x) == before_expiry(0))]
    |                                  ^^^^^^^^^^^^^^^^
 
-Verification failed
 error: aborting due to 9 previous errors
 
