@@ -7,3 +7,4 @@
 pub mod to_string;
 pub mod type_visitor;
 pub mod namespace;
+pub mod unionfind;

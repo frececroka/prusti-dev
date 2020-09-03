@@ -159,6 +159,10 @@ impl DAG {
             .map(|index| self.nodes[index].guard.clone())
             .conjoin()
     }
+    pub fn node_for_borrow(&self, borrow: Borrow) -> &Node {
+        let index = self.get_borrow_index(borrow);
+        &self.nodes[index]
+    }
 }
 
 /// A struct for constructing the reborrowing DAG.

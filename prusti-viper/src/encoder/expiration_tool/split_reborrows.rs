@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::hash::Hash;
 
 use itertools::Itertools;
 
 use crate::encoder::places;
 use crate::encoder::reborrow_signature::ReborrowSignature;
+use crate::utils::unionfind::find;
+use crate::utils::unionfind::union;
 
 use super::pledges::PledgeWithDependencies;
 
@@ -70,26 +71,4 @@ pub(super) fn split_reborrows<'c, 'tcx>(
             } else { None }
         })
         .collect()
-}
-
-fn union<'a, T: Eq + Ord + Hash + Copy + 'a>(
-    representatives: &mut HashMap<T, T>,
-    items: impl AsRef<[T]>
-) {
-    let items = items.as_ref().into_iter()
-        .map(|&item| find(representatives, item))
-        .collect::<Vec<_>>();
-    let &representative = items.iter().min().unwrap();
-    for item in items {
-        representatives.insert(item, representative);
-    }
-}
-
-fn find<T: Eq + Hash + Copy>(representatives: &HashMap<T, T>, item: T) -> T {
-    let &representative = representatives.get(&item).unwrap_or(&item);
-    if item == representative {
-        item
-    } else {
-        find(representatives, representative)
-    }
 }

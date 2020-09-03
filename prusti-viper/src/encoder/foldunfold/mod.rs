@@ -499,13 +499,10 @@ impl<'p, 'v: 'p, 'tcx: 'v> vir::CfgReplacer<PathCtxt<'p>, ActionVec>
 
         if let vir::Stmt::ExpireBorrows(ref dag) = stmt {
             let mut stmts = vec![vir::Stmt::Comment(format!("{}", stmt))];
-            stmts.extend(self.process_expire_borrows(
-                dag,
-                pctxt,
-                curr_block_index,
-                new_cfg,
-                label,
-            )?);
+            let (new_pctxt, new_stmts) = self.process_expire_borrows(
+                dag, pctxt.clone(), curr_block_index, new_cfg, label)?;
+            *pctxt = new_pctxt;
+            stmts.extend(new_stmts);
             return Ok(stmts);
         }
 
